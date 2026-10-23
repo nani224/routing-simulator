@@ -13,13 +13,13 @@
   - [x] Plugin system: `RoutingProtocol` ABC, context isolation, watchdog, exception isolation, dynamic loader
   - [x] Topology: models, loader (JSON/GraphML), generators (ring, grid, tree, random geometric, scale-free)
   - [x] P1 Unit & integration tests, type-check (`mypy --strict`), lint (`ruff`), 100% pass (36 tests, 89% coverage)
-- [ ] **P2: DV plugin, metrics, failure injection, convergence detector, oracle + property tests**
-  - [ ] DV plugin (`dv.py`) with configurable split-horizon, poison-reverse, triggered updates, hold-down timer
-  - [ ] Convergence detector: table stability quiescence window + zero in-flight messages
-  - [ ] Failure injection: link down/up, cost change, node crash/recover
-  - [ ] Metrics engine: convergence time, message/byte count, route flaps, transient loops/blackholes
-  - [ ] Correctness oracle using NetworkX shortest paths
-  - [ ] Hypothesis property-based tests over random topologies & failure sequences
+- [x] **P2: DV plugin, metrics, failure injection, convergence detector, oracle + property tests**
+  - [x] DV plugin (`dv.py`) with configurable split-horizon, poison-reverse, triggered updates, hold-down timer
+  - [x] Convergence detector: table stability quiescence window + zero in-flight messages
+  - [x] Failure injection: link down/up, cost change, node crash/recover
+  - [x] Metrics engine: convergence time, message/byte count, route flaps, transient loops/blackholes, CSV/JSON export
+  - [x] Correctness oracle using NetworkX shortest paths
+  - [x] Hypothesis property-based tests over random topologies & failure sequences (39 tests, 88% coverage)
 - [ ] **P3: LS plugin, compare engine, deterministic runs, benchmarks & perf pass 1**
   - [ ] LS plugin (`ls.py`): LSA flooding, sequence numbers, age, link-state database (LSDB), Dijkstra (heapq)
   - [ ] Compare engine: parallel deterministic runs with identical seed, topology, and event schedule
@@ -64,8 +64,8 @@
   - [ ] Tag v1.0.0 pushed
 
 ## Current Task
-- **Phase**: P2 Distance Vector, Metrics, Oracle & Property Tests
-- **Task**: Implement `backend/routelab/protocols/dv.py` (Distance Vector / RIP-like with split-horizon, poison-reverse, triggered updates, hold-down) and `backend/routelab/metrics/collector.py` & oracle.
+- **Phase**: P3 Link State Protocol, Compare Engine & Benchmarks
+- **Task**: Implement `backend/routelab/protocols/ls.py` (Link State / OSPF-like with LSA sequence numbers, age, LSDB, heapq Dijkstra), `backend/routelab/protocols/flooding.py`, `backend/routelab/sim/comparator.py`, and `backend/tests/bench/test_benchmarks.py`.
 
 ## Decisions Made
 - Architecture: Core simulator separates physical time (asyncio) from virtual clock for deterministic bit-for-bit replay.
@@ -73,9 +73,10 @@
 - Serialization: Msgpack for high-performance compact binary wire protocol with exact byte counting.
 - Design theme: "Cartographer's Atlas / Drafting Table" with warm linen/parchment surface, ink lines, severed-road broken link visuals, courier packet markers.
 - P1 Gate: 36 unit tests passed, mypy --strict green with zero issues in 17 source files, ruff lint and format passed with 0 errors, core coverage at 89%.
+- P2 Gate: 39 unit & property tests passed, DV verified against NetworkX oracle and Hypothesis, CSV/JSON metrics export verified, coverage at 88%.
 
 ## Known Issues
-- None. All P1 gates green.
+- None. All P1 & P2 gates green.
 
 ## Next Action
-- Implement `backend/routelab/protocols/dv.py` and write property tests with NetworkX oracle in `backend/tests/unit/test_dv_oracle.py`.
+- Implement `backend/routelab/protocols/ls.py` and `backend/routelab/protocols/flooding.py`.
