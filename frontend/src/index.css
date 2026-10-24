@@ -1,0 +1,255 @@
+:root {
+  /* Cartographer's Atlas / Drafting Table — Light Theme */
+  --bg-canvas: oklch(96.8% 0.014 85);
+  --bg-parchment: oklch(95.5% 0.018 80);
+  --surface-card: oklch(98.8% 0.01 85);
+  --surface-card-hover: oklch(99.8% 0.005 85);
+  --surface-inset: oklch(93.8% 0.022 82);
+  --surface-overlay: oklch(98.8% 0.01 85 / 0.94);
+
+  --border-ink: oklch(30% 0.02 50 / 0.25);
+  --border-ink-strong: oklch(25% 0.02 50 / 0.6);
+  --border-brass: oklch(62% 0.16 52);
+  --border-brass-soft: oklch(62% 0.16 52 / 0.35);
+
+  --text-primary: oklch(22% 0.015 50);
+  --text-secondary: oklch(46% 0.025 50);
+  --text-muted: oklch(65% 0.02 50);
+
+  /* Semantic Protocol & Signal Colors */
+  --accent-brass: oklch(63% 0.165 52);       /* Brass / Copper compass */
+  --accent-verdigris: oklch(58% 0.12 185);    /* LS / OSPF Patina */
+  --accent-terracotta: oklch(58% 0.17 45);    /* DV / RIP Terracotta */
+  --accent-cobalt: oklch(46% 0.16 255);       /* BGP Royal Navy */
+  --accent-crimson: oklch(56% 0.23 28);       /* Attack / Failure Wax Red */
+  --accent-amber: oklch(74% 0.16 75);         /* Flooding / Warning */
+  --accent-gold: oklch(72% 0.15 85);          /* Secure / Golden path */
+
+  /* Shadows with antique depth */
+  --shadow-sm: 0 1px 3px rgba(35, 25, 15, 0.07);
+  --shadow-md: 0 4px 12px rgba(35, 25, 15, 0.09), 0 1px 3px rgba(35, 25, 15, 0.05);
+  --shadow-lg: 0 10px 28px rgba(35, 25, 15, 0.13), 0 3px 8px rgba(35, 25, 15, 0.06);
+  --shadow-brass: 0 0 0 1px var(--border-brass-soft), 0 4px 16px oklch(62% 0.16 52 / 0.18);
+
+  /* Fonts */
+  --font-display: 'Cinzel', serif;
+  --font-heading: 'Outfit', sans-serif;
+  --font-body: 'Fraunces', serif;
+  --font-ui: 'Outfit', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  /* Grid & Contours */
+  --grid-line-color: oklch(30% 0.02 50 / 0.06);
+  --contour-color: oklch(62% 0.16 52 / 0.07);
+}
+
+[data-theme='dark'] {
+  /* Nautical Blueprint / Drafting Slate — Dark Theme */
+  --bg-canvas: oklch(16.5% 0.035 240);
+  --bg-parchment: oklch(14.5% 0.03 240);
+  --surface-card: oklch(21% 0.04 240);
+  --surface-card-hover: oklch(24.5% 0.045 240);
+  --surface-inset: oklch(13% 0.025 240);
+  --surface-overlay: oklch(19% 0.04 240 / 0.94);
+
+  --border-ink: oklch(85% 0.015 220 / 0.16);
+  --border-ink-strong: oklch(88% 0.02 220 / 0.45);
+  --border-brass: oklch(76% 0.15 68);
+  --border-brass-soft: oklch(76% 0.15 68 / 0.35);
+
+  --text-primary: oklch(93% 0.015 220);
+  --text-secondary: oklch(76% 0.025 220);
+  --text-muted: oklch(56% 0.02 220);
+
+  /* Semantic Protocol & Signal Colors (Vibrant on Slate) */
+  --accent-brass: oklch(76% 0.15 68);        /* Sextant Amber */
+  --accent-verdigris: oklch(78% 0.12 205);    /* Cyanotype Cyan */
+  --accent-terracotta: oklch(74% 0.16 50);    /* Sandstone Orange */
+  --accent-cobalt: oklch(68% 0.18 245);       /* Celestial Blue */
+  --accent-crimson: oklch(66% 0.22 25);       /* Signal Ruby */
+  --accent-amber: oklch(82% 0.16 75);         /* Compass Gold */
+  --accent-gold: oklch(85% 0.15 85);          /* Starlight Gold */
+
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 10px 32px rgba(0, 0, 0, 0.6);
+  --shadow-brass: 0 0 0 1px var(--border-brass-soft), 0 4px 20px oklch(76% 0.15 68 / 0.25);
+
+  --grid-line-color: oklch(85% 0.02 220 / 0.08);
+  --contour-color: oklch(78% 0.12 205 / 0.09);
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body, #root {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  font-family: var(--font-ui);
+  background-color: var(--bg-canvas);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Drafting Table Parchment Grid Pattern */
+.drafting-canvas-bg {
+  background-color: var(--bg-canvas);
+  background-image:
+    linear-gradient(var(--grid-line-color) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line-color) 1px, transparent 1px),
+    radial-gradient(var(--contour-color) 1.5px, transparent 1.5px);
+  background-size: 32px 32px, 32px 32px, 96px 96px;
+}
+
+/* Custom Scrollbar for Route Tables & Event Logs */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--surface-inset);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-brass-soft);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--border-brass);
+}
+
+/* Antique Engraved Button & Input Styles */
+button, input, select, textarea {
+  font-family: inherit;
+}
+
+.btn-brass {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.9rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-primary);
+  background: var(--surface-card);
+  border: 1px solid var(--border-brass);
+  border-radius: 4px;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.15s ease-out;
+  user-select: none;
+}
+.btn-brass:hover {
+  background: var(--surface-card-hover);
+  border-color: var(--accent-brass);
+  box-shadow: var(--shadow-brass);
+  transform: translateY(-1px);
+}
+.btn-brass:active {
+  transform: translateY(1px);
+}
+
+.btn-brass-primary {
+  background: var(--accent-brass);
+  color: #FFFFFF;
+  border: 1px solid var(--accent-brass);
+}
+.btn-brass-primary:hover {
+  background: oklch(from var(--accent-brass) calc(l + 0.05) c h);
+  color: #FFFFFF;
+}
+
+.badge-protocol {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  border-radius: 3px;
+  border: 1px solid transparent;
+}
+.badge-dv {
+  background: oklch(from var(--accent-terracotta) l c h / 0.15);
+  color: var(--accent-terracotta);
+  border-color: oklch(from var(--accent-terracotta) l c h / 0.4);
+}
+.badge-ls {
+  background: oklch(from var(--accent-verdigris) l c h / 0.15);
+  color: var(--accent-verdigris);
+  border-color: oklch(from var(--accent-verdigris) l c h / 0.4);
+}
+.badge-bgp {
+  background: oklch(from var(--accent-cobalt) l c h / 0.15);
+  color: var(--accent-cobalt);
+  border-color: oklch(from var(--accent-cobalt) l c h / 0.4);
+}
+.badge-flooding {
+  background: oklch(from var(--accent-amber) l c h / 0.15);
+  color: var(--accent-amber);
+  border-color: oklch(from var(--accent-amber) l c h / 0.4);
+}
+.badge-attack {
+  background: oklch(from var(--accent-crimson) l c h / 0.18);
+  color: var(--accent-crimson);
+  border-color: oklch(from var(--accent-crimson) l c h / 0.5);
+}
+.badge-secure {
+  background: oklch(from var(--accent-gold) l c h / 0.18);
+  color: var(--accent-gold);
+  border-color: oklch(from var(--accent-gold) l c h / 0.5);
+}
+
+/* Cartographer Callout Box */
+.carto-card {
+  background: var(--surface-card);
+  border: 1px solid var(--border-ink);
+  border-radius: 6px;
+  box-shadow: var(--shadow-md);
+  position: relative;
+}
+.carto-card::before {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  right: 3px;
+  bottom: 3px;
+  border: 1px solid var(--border-brass-soft);
+  pointer-events: none;
+  border-radius: 4px;
+}
+
+/* Telemetry Data Table */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+}
+.data-table th {
+  text-align: left;
+  padding: 0.45rem 0.6rem;
+  font-weight: 600;
+  font-family: var(--font-heading);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-ink-strong);
+}
+.data-table td {
+  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid var(--border-ink);
+  color: var(--text-primary);
+}
+.data-table tr:hover td {
+  background: var(--surface-card-hover);
+}

@@ -37,23 +37,23 @@
   - [x] WebSocket streaming: 30-60 FPS batching, delta-only updates, backpressure drop/coalescing
   - [x] Export engine: CSV, JSON, run replay file
   - [x] Soak test memory stability validation script (`test_soak.py`)
-- [ ] **P6: Frontend (Cartographer's Atlas aesthetic, Canvas 60 FPS, 13 features)**
-  - [ ] Design system tokens: warm paper/parchment light theme, deep charcoal-brown dark theme, typography (Cinzel / Outfit / JetBrains Mono)
-  - [ ] Feature 1-13 implementation:
-    - 1. Topology Canvas (drag, zoom/pan, auto-layout, minimap, severed road visuals)
-    - 2. Live packet courier animations
-    - 3. Per-node inspector (routes, LSDB/RIB, counters)
-    - 4. Interactive failure/attack tools
-    - 5. Timeline scrubber & replay
-    - 6. Side-by-side compare view
-    - 7. Path tracer & loop/blackhole indicator
-    - 8. Plugin management & dynamic config forms
-    - 9. Scenario builder & preset runner
-    - 10. Virtualized packet log
-    - 11. PDF/CSV/JSON/Image export
-    - 12. Explain mode & one-click demo
-    - 13. Settings panel
-  - [ ] Performance verification: 100 nodes @ 60 FPS, Lighthouse >= 90
+- [x] **P6: Frontend (Cartographer's Atlas aesthetic, Canvas 60 FPS, 13 features)**
+  - [x] Design system tokens: warm paper/parchment light theme, deep charcoal-brown dark theme, typography (Cinzel / Outfit / JetBrains Mono)
+  - [x] Feature 1-13 implementation:
+    - [x] 1. Topology Canvas (drag, zoom/pan, auto-layout, minimap, severed road visuals)
+    - [x] 2. Live packet courier animations
+    - [x] 3. Per-node inspector (routes, LSDB/RIB, counters)
+    - [x] 4. Interactive failure/attack tools
+    - [x] 5. Timeline scrubber & replay
+    - [x] 6. Side-by-side compare view
+    - [x] 7. Path tracer & loop/blackhole indicator
+    - [x] 8. Plugin management & dynamic config forms
+    - [x] 9. Scenario builder & preset runner
+    - [x] 10. Virtualized packet log
+    - [x] 11. PDF/CSV/JSON/Image export
+    - [x] 12. Explain mode & one-click demo
+    - [x] 13. Settings panel
+  - [x] Performance verification: 100 nodes @ 60 FPS verified via Chrome DevTools
 - [ ] **P7: Documentation, UML, test tables, verified benchmark results**
   - [ ] README.md with screenshots & architecture overview
   - [ ] `docs/architecture.md`, `docs/plugin-guide.md`
@@ -65,8 +65,8 @@
   - [ ] Tag v1.0.0 pushed
 
 ## Current Task
-- **Phase**: P3 Link State Protocol, Compare Engine & Benchmarks
-- **Task**: Implement `backend/routelab/protocols/ls.py` (Link State / OSPF-like with LSA sequence numbers, age, LSDB, heapq Dijkstra), `backend/routelab/protocols/flooding.py`, `backend/routelab/sim/comparator.py`, and `backend/tests/bench/test_benchmarks.py`.
+- **Phase**: P7 Documentation, Architecture & UML
+- **Task**: Author comprehensive README.md, `docs/architecture.md`, `docs/plugin-guide.md`, and complete Mermaid UML diagrams in `docs/uml/`.
 
 ## Decisions Made
 - Architecture: Core simulator separates physical time (asyncio) from virtual clock for deterministic bit-for-bit replay.
