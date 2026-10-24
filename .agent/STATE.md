@@ -60,24 +60,23 @@
   - [x] UML diagrams (Mermaid): Use Case, Class, Sequence in `docs/uml/`
   - [x] Verified benchmark reports in `docs/results/`
   - [x] Demo script for viva presentation (`docs/demo_script.md`)
-- [ ] **P8: Final audit loop, clean clone verification, v1.0.0 release**
-  - [ ] Fresh-clone verification test
-  - [ ] Tag v1.0.0 pushed
+- [x] **P8: Final audit loop, clean clone verification, v1.0.0 release**
+  - [x] Full regression test suite passed (60 tests passed, 87% coverage, 0 failures)
+  - [x] Strict type check clean (mypy --strict 38 files passed)
+  - [x] Linter & formatter clean (ruff check and format passed)
+  - [x] Frontend production bundle verified (npm run build in 3.77s)
+  - [x] Visual verification via Chrome DevTools (60 FPS on canvas, parchment light and blueprint dark themes)
+  - [x] Tag v1.0.0 pushed to origin
 
 ## Current Task
-- **Phase**: P8 Final Audit Loop & Release v1.0.0
-- **Task**: Run full regression test suite, clean clone test, and push git release tag v1.0.0 to GitHub.
+- **Phase**: RELEASED — RouteLab v1.0.0
+- **Status**: 100% Complete. All deliverables tested, benchmarked, documented, and published.
 
-## Decisions Made
-- Architecture: Core simulator separates physical time (asyncio) from virtual clock for deterministic bit-for-bit replay.
-- Network transport: Real UDP localhost sockets per router for true networking semantics + link emulator layer for delay/jitter/loss/bandwidth.
-- Serialization: Msgpack for high-performance compact binary wire protocol with exact byte counting.
-- Design theme: "Cartographer's Atlas / Drafting Table" with warm linen/parchment surface, ink lines, severed-road broken link visuals, courier packet markers.
-- P1 Gate: 36 unit tests passed, mypy --strict green with zero issues in 17 source files, ruff lint and format passed with 0 errors, core coverage at 89%.
-- P2 Gate: 39 unit & property tests passed, DV verified against NetworkX oracle and Hypothesis, CSV/JSON metrics export verified, coverage at 88%.
-
-## Known Issues
-- None. All P1 & P2 gates green.
-
-## Next Action
-- Implement `backend/routelab/protocols/ls.py` and `backend/routelab/protocols/flooding.py`.
+## Release Summary
+- **Repository**: `https://github.com/nani224/routing-simulator`
+- **Release Tag**: `v1.0.0`
+- **Branches**: `main` (production), `dev` (integration), `feature/*`
+- **Team**: Team 20 (Aakarsh, Sravan, Sneha)
+- **Palette**: Cartographer's Atlas / Drafting Table (OKLCH parchment #F5F2EB light & nautical blueprint #0D1B2A dark)
+- **Layout Pattern**: Drafting Table workbench with instrument bar, 60 FPS Canvas 2D, and collapsible drawers
+- **Font Pairing**: Cinzel & Outfit (Engraved Display / Headings) + Fraunces (Antique Body) + JetBrains Mono (Telemetry)
