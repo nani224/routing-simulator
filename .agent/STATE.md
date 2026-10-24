@@ -54,19 +54,19 @@
     - [x] 12. Explain mode & one-click demo
     - [x] 13. Settings panel
   - [x] Performance verification: 100 nodes @ 60 FPS verified via Chrome DevTools
-- [ ] **P7: Documentation, UML, test tables, verified benchmark results**
-  - [ ] README.md with screenshots & architecture overview
-  - [ ] `docs/architecture.md`, `docs/plugin-guide.md`
-  - [ ] UML diagrams (Mermaid): Use Case, Class, Sequence in `docs/uml/`
-  - [ ] Verified benchmark reports in `docs/results/`
-  - [ ] Demo script for viva presentation
+- [x] **P7: Documentation, UML, test tables, verified benchmark results**
+  - [x] README.md with screenshots & architecture overview
+  - [x] `docs/architecture.md`, `docs/plugin-guide.md`
+  - [x] UML diagrams (Mermaid): Use Case, Class, Sequence in `docs/uml/`
+  - [x] Verified benchmark reports in `docs/results/`
+  - [x] Demo script for viva presentation (`docs/demo_script.md`)
 - [ ] **P8: Final audit loop, clean clone verification, v1.0.0 release**
   - [ ] Fresh-clone verification test
   - [ ] Tag v1.0.0 pushed
 
 ## Current Task
-- **Phase**: P7 Documentation, Architecture & UML
-- **Task**: Author comprehensive README.md, `docs/architecture.md`, `docs/plugin-guide.md`, and complete Mermaid UML diagrams in `docs/uml/`.
+- **Phase**: P8 Final Audit Loop & Release v1.0.0
+- **Task**: Run full regression test suite, clean clone test, and push git release tag v1.0.0 to GitHub.
 
 ## Decisions Made
 - Architecture: Core simulator separates physical time (asyncio) from virtual clock for deterministic bit-for-bit replay.
