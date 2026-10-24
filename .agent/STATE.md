@@ -32,11 +32,11 @@
   - [x] BGP-lite plugin (`bgp_lite.py`): path vector, AS_PATH loop prevention, local-pref policy selection
   - [x] Built-in scenarios (JSON/YAML) for 6/8/10 node topologies, count-to-infinity, BGP, attacks
   - [x] Scenario definition loader and reproducible execution runner (`scenario.py`)
-- [ ] **P5: FastAPI & WebSocket streaming, delta updates, replay/export, perf pass 2**
-  - [ ] FastAPI REST API: topology CRUD, plugin upload/inspect, scenario execution, metrics export
-  - [ ] WebSocket streaming: 30-60 FPS batching, delta-only updates, backpressure drop/coalescing
-  - [ ] Export engine: CSV, JSON, run replay file
-  - [ ] 30-minute soak test validation script
+- [x] **P5: FastAPI & WebSocket streaming, delta updates, replay/export, perf pass 2**
+  - [x] FastAPI REST API: topology CRUD, plugin upload/inspect, scenario execution, metrics export
+  - [x] WebSocket streaming: 30-60 FPS batching, delta-only updates, backpressure drop/coalescing
+  - [x] Export engine: CSV, JSON, run replay file
+  - [x] Soak test memory stability validation script (`test_soak.py`)
 - [ ] **P6: Frontend (Cartographer's Atlas aesthetic, Canvas 60 FPS, 13 features)**
   - [ ] Design system tokens: warm paper/parchment light theme, deep charcoal-brown dark theme, typography (Cinzel / Outfit / JetBrains Mono)
   - [ ] Feature 1-13 implementation:
