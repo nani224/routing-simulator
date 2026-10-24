@@ -1,0 +1,20 @@
+{
+  "name": "8-Node Bottleneck & Cut-Bridge",
+  "description": "8-node two-cluster topology joined by a critical bridge link (D-E). Evaluates network partition and path re-routing.",
+  "topology_type": "preset:8_node",
+  "default_protocol": "link_state",
+  "events": [
+    {
+      "timestamp": 0.4,
+      "action": "link_cost",
+      "params": {
+        "u": "D",
+        "v": "E",
+        "cost": 50.0
+      }
+    }
+  ],
+  "quiescence_window_s": 0.3,
+  "time_limit_s": 15.0,
+  "seed": 42
+}

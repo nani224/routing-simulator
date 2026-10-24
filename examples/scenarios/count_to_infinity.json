@@ -1,0 +1,39 @@
+{
+  "name": "Count-to-Infinity Problem & Solution",
+  "description": "Demonstrates the classic Bellman-Ford count-to-infinity anomaly when link B-C fails in a linear 3-node topology.",
+  "topology_type": "preset:count_to_infinity",
+  "default_protocol": "distance_vector",
+  "protocol_configs": {
+    "A": {
+      "split_horizon": true,
+      "poison_reverse": true,
+      "triggered_updates": true,
+      "infinity_metric": 16.0
+    },
+    "B": {
+      "split_horizon": true,
+      "poison_reverse": true,
+      "triggered_updates": true,
+      "infinity_metric": 16.0
+    },
+    "C": {
+      "split_horizon": true,
+      "poison_reverse": true,
+      "triggered_updates": true,
+      "infinity_metric": 16.0
+    }
+  },
+  "events": [
+    {
+      "timestamp": 0.4,
+      "action": "link_down",
+      "params": {
+        "u": "B",
+        "v": "C"
+      }
+    }
+  ],
+  "quiescence_window_s": 0.3,
+  "time_limit_s": 10.0,
+  "seed": 42
+}

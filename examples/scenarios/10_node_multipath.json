@@ -1,0 +1,26 @@
+{
+  "name": "10-Node Multipath Core",
+  "description": "10-node dual-ring interconnected topology testing load distribution, equal-cost path stability, and rapid reconvergence.",
+  "topology_type": "preset:10_node",
+  "default_protocol": "link_state",
+  "events": [
+    {
+      "timestamp": 0.5,
+      "action": "link_down",
+      "params": {
+        "u": "R1",
+        "v": "R2"
+      }
+    },
+    {
+      "timestamp": 1.2,
+      "action": "node_crash",
+      "params": {
+        "node_id": "R6"
+      }
+    }
+  ],
+  "quiescence_window_s": 0.3,
+  "time_limit_s": 15.0,
+  "seed": 42
+}

@@ -20,17 +20,18 @@
   - [x] Metrics engine: convergence time, message/byte count, route flaps, transient loops/blackholes, CSV/JSON export
   - [x] Correctness oracle using NetworkX shortest paths
   - [x] Hypothesis property-based tests over random topologies & failure sequences (39 tests, 88% coverage)
-- [ ] **P3: LS plugin, compare engine, deterministic runs, benchmarks & perf pass 1**
-  - [ ] LS plugin (`ls.py`): LSA flooding, sequence numbers, age, link-state database (LSDB), Dijkstra (heapq)
-  - [ ] Compare engine: parallel deterministic runs with identical seed, topology, and event schedule
-  - [ ] Flooding baseline plugin (`flooding.py`)
-  - [ ] Benchmarks suite: convergence time, message overhead, memory, event throughput
-  - [ ] Performance pass 1: hot path verification, memory footprint, docs/results/perf.md
-- [ ] **P4: Scenarios, count-to-infinity + fix, poisoning attack + mitigation, BGP-lite**
-  - [ ] Count-to-infinity scenario reproduction & split-horizon/poison-reverse fix verification
-  - [ ] Routing-table poisoning attack plugin & mitigation (validation/filtering)
-  - [ ] BGP-lite plugin (`bgp_lite.py`): path vector, AS_PATH loop prevention, local-pref policy selection
-  - [ ] Built-in scenarios (JSON/YAML) for 6/8/10 node topologies
+- [x] **P3: LS plugin, compare engine, deterministic runs, benchmarks & perf pass 1**
+  - [x] LS plugin (`ls.py`): LSA flooding, sequence numbers, age, link-state database (LSDB), Dijkstra (heapq)
+  - [x] Compare engine: parallel deterministic runs with identical seed, topology, and event schedule
+  - [x] Flooding baseline plugin (`flooding.py`)
+  - [x] Benchmarks suite: convergence time, message overhead, memory, event throughput
+  - [x] Performance pass 1: hot path verification, memory footprint, docs/results/perf.md
+- [x] **P4: Scenarios, count-to-infinity + fix, poisoning attack + mitigation, BGP-lite**
+  - [x] Count-to-infinity scenario reproduction & split-horizon/poison-reverse fix verification
+  - [x] Routing-table poisoning attack plugin & mitigation (validation/filtering)
+  - [x] BGP-lite plugin (`bgp_lite.py`): path vector, AS_PATH loop prevention, local-pref policy selection
+  - [x] Built-in scenarios (JSON/YAML) for 6/8/10 node topologies, count-to-infinity, BGP, attacks
+  - [x] Scenario definition loader and reproducible execution runner (`scenario.py`)
 - [ ] **P5: FastAPI & WebSocket streaming, delta updates, replay/export, perf pass 2**
   - [ ] FastAPI REST API: topology CRUD, plugin upload/inspect, scenario execution, metrics export
   - [ ] WebSocket streaming: 30-60 FPS batching, delta-only updates, backpressure drop/coalescing

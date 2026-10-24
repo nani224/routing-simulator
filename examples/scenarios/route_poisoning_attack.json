@@ -1,0 +1,20 @@
+{
+  "name": "Routing-Table Poisoning & Blackhole Attack",
+  "description": "Adversarial node F injects fraudulent distance vector claiming direct cost 1 to victim A, attempting to divert network traffic.",
+  "topology_type": "preset:6_node",
+  "default_protocol": "distance_vector",
+  "node_protocols": {
+    "F": "poisoning_attack"
+  },
+  "protocol_configs": {
+    "F": {
+      "victim_node": "A",
+      "poison_cost": 1.0,
+      "attack_enabled": true
+    }
+  },
+  "events": [],
+  "quiescence_window_s": 0.4,
+  "time_limit_s": 10.0,
+  "seed": 42
+}

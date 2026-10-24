@@ -1,0 +1,27 @@
+{
+  "name": "6-Node Course Baseline (DV vs LS)",
+  "description": "Standard 6-node meshed course benchmark topology comparing Distance Vector and Link State convergence under link failure.",
+  "topology_type": "preset:6_node",
+  "default_protocol": "distance_vector",
+  "events": [
+    {
+      "timestamp": 0.5,
+      "action": "link_down",
+      "params": {
+        "u": "A",
+        "v": "B"
+      }
+    },
+    {
+      "timestamp": 1.5,
+      "action": "link_up",
+      "params": {
+        "u": "A",
+        "v": "B"
+      }
+    }
+  ],
+  "quiescence_window_s": 0.3,
+  "time_limit_s": 10.0,
+  "seed": 42
+}

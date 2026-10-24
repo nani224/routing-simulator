@@ -94,6 +94,9 @@ class EventStore:
     def count(self) -> int:
         return len(self._events)
 
+    def __len__(self) -> int:
+        return len(self._events)
+
     def get_all(self) -> list[SimEvent]:
         return list(self._events)
 

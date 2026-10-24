@@ -12,10 +12,11 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import inspect
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 
 from routelab.core.clock import Clock, RealtimeClock
 from routelab.core.events import EventStore, EventType
@@ -55,16 +56,18 @@ class SimulationEngine:
     def __init__(
         self,
         topology: Topology,
-        protocol_factory: Callable[[], RoutingProtocol],
+        protocol_factory: Callable[[], RoutingProtocol] | Callable[[str], RoutingProtocol],
         clock: Clock | None = None,
         event_store: EventStore | None = None,
         quiescence_window_s: float = 0.5,
+        seed: int = 42,
     ) -> None:
         self.topology = topology
         self.protocol_factory = protocol_factory
         self.clock: Clock = clock or RealtimeClock(initial_speed=1.0)
         self.event_store: EventStore = event_store or EventStore()
         self.quiescence_window_s = quiescence_window_s
+        self.seed = seed
 
         self.nodes: dict[str, RouterNode] = {}
         self.links: dict[str, LinkEmulator] = {}  # "A<->B" -> LinkEmulator
@@ -87,18 +90,33 @@ class SimulationEngine:
 
     def _build_network(self) -> None:
         """Instantiate RouterNodes and LinkEmulators from the active Topology."""
+        # Detect whether protocol_factory accepts a node_id argument
+        takes_node_id = False
+        try:
+            sig = inspect.signature(self.protocol_factory)
+            params = list(sig.parameters.values())
+            if len(params) == 1 and params[0].name != "config":
+                takes_node_id = True
+        except Exception:
+            pass
+
         # 1. Instantiate nodes
         for node_id, _t_node in self.topology.nodes.items():
             node = RouterNode(
                 node_id=node_id,
                 clock=self.clock,
                 event_store=self.event_store,
-                seed=abs(hash(node_id)) % 100000,
+                seed=abs(hash(f"{self.seed}:{node_id}")) % 100000,
             )
             # Router lookup resolver
             node._network_router_lookup = lambda target_id: self.nodes.get(target_id)  # type: ignore[attr-defined]
             # Attach protocol instance
-            protocol_inst = self.protocol_factory()
+            if takes_node_id:
+                factory_with_id = cast(Callable[[str], RoutingProtocol], self.protocol_factory)
+                protocol_inst = factory_with_id(node_id)
+            else:
+                factory_no_args = cast(Callable[[], RoutingProtocol], self.protocol_factory)
+                protocol_inst = factory_no_args()
             node.set_protocol(protocol_inst)
             self.nodes[node_id] = node
 
@@ -272,6 +290,10 @@ class SimulationEngine:
         1. All link in-flight queues are completely empty.
         2. No routing table mutations have occurred during the quiescence window.
         """
+        # Check if there are unexecuted scheduled events pending
+        if any(not ev.executed for ev in self._scheduled_events):
+            return False
+
         now = self.clock.now()
         # Check in-flight packets
         total_in_flight = sum(link.in_flight_count() for link in self.links.values())

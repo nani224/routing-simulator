@@ -1,0 +1,41 @@
+{
+  "name": "BGP Tier-1 Interdomain Peering",
+  "description": "Multi-AS BGP topology testing AS_PATH loop prevention and LOCAL_PREF route preference between AS100, AS200, AS300, and AS400.",
+  "topology_type": "preset:bgp_tier1",
+  "default_protocol": "bgp_lite",
+  "protocol_configs": {
+    "AS100_R1": {
+      "as_number": "100",
+      "peer_policies": {
+        "AS200_R1": {
+          "local_pref": 200
+        },
+        "AS400_R1": {
+          "local_pref": 100
+        }
+      }
+    },
+    "AS200_R1": {
+      "as_number": "200"
+    },
+    "AS300_R1": {
+      "as_number": "300"
+    },
+    "AS400_R1": {
+      "as_number": "400"
+    }
+  },
+  "events": [
+    {
+      "timestamp": 0.5,
+      "action": "link_down",
+      "params": {
+        "u": "AS100_R1",
+        "v": "AS200_R1"
+      }
+    }
+  ],
+  "quiescence_window_s": 0.3,
+  "time_limit_s": 12.0,
+  "seed": 42
+}
