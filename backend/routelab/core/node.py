@@ -9,6 +9,7 @@ strict ProtocolContext sandbox.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import enum
 import logging
 import random
@@ -143,7 +144,8 @@ class RouterNode(ProtocolContext):
         self.status = NodeStatus.STOPPED
         self._cancel_all_timers()
         if self._transport is not None:
-            self._transport.close()
+            with contextlib.suppress(Exception):
+                self._transport.close()
             self._transport = None
 
     def crash(self) -> None:
