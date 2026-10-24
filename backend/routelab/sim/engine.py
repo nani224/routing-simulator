@@ -65,7 +65,7 @@ class SimulationEngine:
         self.topology = topology
         self.protocol_factory = protocol_factory
         self.clock: Clock = clock or RealtimeClock(initial_speed=1.0)
-        self.event_store: EventStore = event_store or EventStore()
+        self.event_store: EventStore = event_store if event_store is not None else EventStore()
         self.quiescence_window_s = quiescence_window_s
         self.seed = seed
 
@@ -362,7 +362,7 @@ class SimulationEngine:
             self.inject_link_state(ev.params["u"], ev.params["v"], up=False)
         elif ev.action == "link_up":
             self.inject_link_state(ev.params["u"], ev.params["v"], up=True)
-        elif ev.action == "cost_change":
+        elif ev.action in ("cost_change", "link_cost"):
             self.inject_link_cost(ev.params["u"], ev.params["v"], ev.params["cost"])
         elif ev.action == "node_crash":
             self.inject_node_crash(ev.params["node_id"])
@@ -380,6 +380,10 @@ class SimulationEngine:
                     asyncio.create_task(res)
             except Exception as exc:
                 logger.error("Error invoking delta listener: %s", exc)
+
+    def subscribe_deltas(self, listener: Callable[[dict[str, Any]], Any]) -> None:
+        """Register a callback or coroutine to receive real-time delta events."""
+        self._delta_listeners.append(listener)
 
     def get_all_routes(self) -> dict[str, list[RouteEntry]]:
         """Return routing tables for all running nodes."""
