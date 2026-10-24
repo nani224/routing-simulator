@@ -222,9 +222,9 @@ class RouterNode(ProtocolContext):
 
         if self._runner is not None:
             self._runner.on_message(pkt.src, pkt.payload)
-            self._check_table_flaps()
             if self._runner.is_faulty:
                 self.status = NodeStatus.FAULTY
+            self._check_table_flaps()
 
     def handle_incoming_raw_datagram(self, data: bytes, addr: tuple[str, int]) -> None:
         """Handle incoming raw datagram on physical UDP socket."""

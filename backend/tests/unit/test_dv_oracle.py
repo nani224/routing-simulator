@@ -73,8 +73,7 @@ async def test_dv_convergence_and_oracle_on_6_node() -> None:
         lnk
         for lnk in topo_post_fail.links
         if not (
-            (lnk.source == "A" and lnk.target == "B")
-            or (lnk.source == "B" and lnk.target == "A")
+            (lnk.source == "A" and lnk.target == "B") or (lnk.source == "B" and lnk.target == "A")
         )
     ]
 
