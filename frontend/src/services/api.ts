@@ -1,4 +1,11 @@
-import type { TopologyData, TopologyLink, ProtocolType, SimEventItem, ComparisonMetrics } from '../types';
+import type {
+  TopologyData,
+  TopologyLink,
+  ProtocolType,
+  SimEventItem,
+  ComparisonMetrics,
+  ComparisonReportResponse,
+} from '../types';
 
 const API_BASE = 'http://localhost:8000';
 const WS_BASE = 'ws://localhost:8000/ws/simulation';
@@ -223,7 +230,7 @@ export class RouteLabApi {
     topology: TopologyData,
     protocols: ProtocolType[],
     duration_s = 5.0
-  ): Promise<Record<string, ComparisonMetrics>> {
+  ): Promise<ComparisonReportResponse> {
     const backendTopologyData = {
       nodes: Object.entries(topology.nodes).map(([id, data]) => ({
         id,
@@ -272,7 +279,15 @@ export class RouteLabApi {
         stretch: m.average_path_stretch ?? m.stretch ?? 1.0,
       };
     }
-    return normalized;
+    return {
+      topology_name: data.topology_name || topology.name,
+      seed: data.seed ?? 42,
+      protocols: data.protocols || protocols,
+      metrics: normalized,
+      winners: data.winners || {},
+      summary_notes: data.summary_notes || [],
+      packet_traces: data.packet_traces || {},
+    };
   }
 
   static connectWebSocket(

@@ -88,3 +88,22 @@ export interface ComparisonMetrics {
   total_flaps: number;
   stretch: number;
 }
+
+export interface PacketTraceEvent {
+  seq: number;
+  ts: number;
+  type: string;
+  src: string;
+  dst: string;
+  proto?: string;
+}
+
+export interface ComparisonReportResponse {
+  topology_name: string;
+  seed: number;
+  protocols: string[];
+  metrics: Record<string, ComparisonMetrics>;
+  winners: Record<string, string>;
+  summary_notes: string[];
+  packet_traces: Record<string, PacketTraceEvent[]>;
+}

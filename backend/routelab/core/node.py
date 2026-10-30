@@ -17,6 +17,7 @@ import socket
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
+from routelab.core.events import EventType
 from routelab.core.packet import Packet, PacketType
 from routelab.plugins.interface import NeighborInfo, ProtocolContext, RouteEntry, RoutingProtocol
 from routelab.plugins.loader import IsolatedProtocolRunner
@@ -191,6 +192,19 @@ class RouterNode(ProtocolContext):
         self.packets_sent += 1
         self.bytes_sent += len(encoded)
 
+        if self.event_store is not None:
+            self.event_store.append(
+                timestamp=self.clock.now(),
+                event_type=EventType.PACKET_SENT,
+                source=self.node_id,
+                data={
+                    "src": self.node_id,
+                    "dst": nbr,
+                    "proto": pkt.proto,
+                    "seq": self._seq,
+                },
+            )
+
         # Transmit via LinkEmulator
         link.transmit(pkt, delivery_callback=self._deliver_to_nbr_callback(nbr))
 
@@ -236,6 +250,19 @@ class RouterNode(ProtocolContext):
 
         self.packets_received += 1
         self.bytes_received += pkt.byte_size
+
+        if self.event_store is not None:
+            self.event_store.append(
+                timestamp=self.clock.now(),
+                event_type=EventType.PACKET_DELIVERED,
+                source=self.node_id,
+                data={
+                    "src": pkt.src,
+                    "dst": self.node_id,
+                    "proto": pkt.proto,
+                    "seq": pkt.seq,
+                },
+            )
 
         if self._runner is not None:
             self._runner.on_message(pkt.src, pkt.payload)

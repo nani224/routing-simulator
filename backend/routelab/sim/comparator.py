@@ -20,6 +20,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from routelab.core.clock import VirtualClock
+from routelab.core.events import EventStore, EventType
 from routelab.metrics.collector import MetricsCollector, RunMetrics
 from routelab.metrics.oracle import RoutingOracle
 from routelab.plugins.interface import RoutingProtocol
@@ -39,6 +40,7 @@ class ComparisonReport:
     metrics: dict[str, RunMetrics]
     winners: dict[str, str]  # metric_name -> winning_protocol_name
     summary_notes: list[str] = field(default_factory=list)
+    packet_traces: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -48,6 +50,7 @@ class ComparisonReport:
             "metrics": {k: v.to_dict() for k, v in self.metrics.items()},
             "winners": self.winners,
             "summary_notes": self.summary_notes,
+            "packet_traces": self.packet_traces,
         }
 
 
@@ -66,6 +69,7 @@ class CompareEngine:
     ) -> ComparisonReport:
         """Execute protocols deterministically on the identical topology and event schedule."""
         results: dict[str, RunMetrics] = {}
+        packet_traces: dict[str, list[dict[str, Any]]] = {}
 
         for proto_name, factory in protocols:
             # Recreate isolated virtual clock with identical seed
@@ -73,10 +77,13 @@ class CompareEngine:
             # Fresh topology clone
             topo_clone = Topology.from_dict(topology.to_dict())
 
+            store = EventStore()
+
             engine = SimulationEngine(
                 topology=topo_clone,
                 protocol_factory=factory,
                 clock=vclock,
+                event_store=store,
                 quiescence_window_s=quiescence_window_s,
             )
 
@@ -107,6 +114,20 @@ class CompareEngine:
             )
             results[proto_name] = metrics
 
+            # Capture packet events for animated courier visualization
+            traces: list[dict[str, Any]] = []
+            for ev in store.get_all():
+                if ev.event_type in (EventType.PACKET_SENT, EventType.PACKET_DELIVERED, EventType.PACKET_DROPPED):
+                    traces.append({
+                        "seq": ev.seq,
+                        "ts": round(ev.timestamp, 4),
+                        "type": ev.event_type.value,
+                        "src": ev.data.get("src", ev.source),
+                        "dst": ev.data.get("dst", ""),
+                        "proto": ev.data.get("proto", proto_name),
+                    })
+            packet_traces[proto_name] = traces
+
             await engine.stop()
 
         # Compute winner per metric
@@ -120,6 +141,7 @@ class CompareEngine:
             metrics=results,
             winners=winners,
             summary_notes=summary_notes,
+            packet_traces=packet_traces,
         )
 
     @classmethod
