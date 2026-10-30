@@ -44,15 +44,17 @@ def create_app() -> FastAPI:
     )
 
     # Core health check
+    @app.get("/api/health", response_model=HealthResponse, tags=["system"])
     @app.get("/api/v1/health", response_model=HealthResponse, tags=["system"])
     def health_check() -> HealthResponse:
         return HealthResponse()
 
-    # Mount REST routers under /api/v1
-    app.include_router(topologies_router, prefix="/api/v1")
-    app.include_router(plugins_router, prefix="/api/v1")
-    app.include_router(scenarios_router, prefix="/api/v1")
-    app.include_router(simulation_router, prefix="/api/v1")
+    # Mount REST routers under both /api and /api/v1 for compatibility
+    for prefix in ("/api", "/api/v1"):
+        app.include_router(topologies_router, prefix=prefix)
+        app.include_router(plugins_router, prefix=prefix)
+        app.include_router(scenarios_router, prefix=prefix)
+        app.include_router(simulation_router, prefix=prefix)
 
     # Mount WebSocket router
     app.include_router(ws_router)
