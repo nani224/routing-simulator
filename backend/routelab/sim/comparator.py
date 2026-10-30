@@ -41,6 +41,7 @@ class ComparisonReport:
     winners: dict[str, str]  # metric_name -> winning_protocol_name
     summary_notes: list[str] = field(default_factory=list)
     packet_traces: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
+    final_routes: dict[str, dict[str, list[dict[str, Any]]]] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -51,6 +52,7 @@ class ComparisonReport:
             "winners": self.winners,
             "summary_notes": self.summary_notes,
             "packet_traces": self.packet_traces,
+            "final_routes": self.final_routes,
         }
 
 
@@ -70,6 +72,7 @@ class CompareEngine:
         """Execute protocols deterministically on the identical topology and event schedule."""
         results: dict[str, RunMetrics] = {}
         packet_traces: dict[str, list[dict[str, Any]]] = {}
+        final_routes: dict[str, dict[str, list[dict[str, Any]]]] = {}
 
         for proto_name, factory in protocols:
             # Recreate isolated virtual clock with identical seed
@@ -106,6 +109,10 @@ class CompareEngine:
             # Validate against ground-truth oracle
             tables = engine.get_all_routes()
             oracle_report = RoutingOracle.validate_tables(topo_clone, tables)
+            proto_tables: dict[str, list[dict[str, Any]]] = {}
+            for nid, rlist in tables.items():
+                proto_tables[nid] = [r.to_dict() for r in rlist]
+            final_routes[proto_name] = proto_tables
 
             metrics = MetricsCollector.collect_from_engine(
                 engine,
@@ -142,6 +149,7 @@ class CompareEngine:
             winners=winners,
             summary_notes=summary_notes,
             packet_traces=packet_traces,
+            final_routes=final_routes,
         )
 
     @classmethod

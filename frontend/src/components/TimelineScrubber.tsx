@@ -54,6 +54,7 @@ export const TimelineScrubber: React.FC<TimelineScrubberProps> = ({
           className={isRunning ? 'btn-brass' : 'btn-brass btn-brass-primary'}
           style={{ width: '36px', height: '36px', padding: 0 }}
           onClick={onTogglePlay}
+          title={isRunning ? 'Pause Simulation' : 'Run / Resume Simulation'}
         >
           {isRunning ? <Pause size={16} /> : <Play size={16} />}
         </button>

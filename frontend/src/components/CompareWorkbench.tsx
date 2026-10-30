@@ -20,6 +20,9 @@ import {
   Gauge,
   Send,
   Sparkles,
+  Navigation,
+  ArrowRight,
+  Route,
 } from 'lucide-react';
 
 interface CompareWorkbenchProps {
@@ -38,6 +41,14 @@ interface CourierParticle {
   protocol: string;
 }
 
+interface TracedPathResult {
+  path: string[];
+  cost: number;
+  hops: number;
+  isOptimal: boolean;
+  status: string;
+}
+
 export const CompareWorkbench: React.FC<CompareWorkbenchProps> = ({
   isOpen,
   onClose,
@@ -48,6 +59,19 @@ export const CompareWorkbench: React.FC<CompareWorkbenchProps> = ({
   const [report, setReport] = useState<ComparisonReportResponse | null>(null);
   const [isComparing, setIsComparing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Source & Destination for Interactive Path Comparison & Highlighting
+  const nodeIds = useMemo(() => Object.keys(topology.nodes), [topology.nodes]);
+  const [pathSrc, setPathSrc] = useState<string>('R1');
+  const [pathDst, setPathDst] = useState<string>('R6');
+
+  // Keep pathSrc and pathDst valid when topology changes
+  useEffect(() => {
+    if (nodeIds.length > 0) {
+      if (!topology.nodes[pathSrc]) setPathSrc(nodeIds[0]);
+      if (!topology.nodes[pathDst]) setPathDst(nodeIds[nodeIds.length - 1]);
+    }
+  }, [topology, nodeIds]);
 
   // Playback & Animation State (Normalized 10.0s Visual Presentation Timeline)
   const TOTAL_VISUAL_RACE_S = 10.0;
@@ -76,6 +100,124 @@ export const CompareWorkbench: React.FC<CompareWorkbenchProps> = ({
     return maxT;
   }, [report]);
 
+  // Fallback Dijkstra Shortest Path Calculation
+  const computeDijkstraPath = (src: string, dst: string): TracedPathResult => {
+    if (src === dst) {
+      return { path: [src], cost: 0, hops: 0, isOptimal: true, status: 'Identical' };
+    }
+
+    const dist: Record<string, number> = {};
+    const prev: Record<string, string | null> = {};
+    const unvisited = new Set<string>(nodeIds);
+
+    for (const n of nodeIds) {
+      dist[n] = Infinity;
+      prev[n] = null;
+    }
+    dist[src] = 0;
+
+    while (unvisited.size > 0) {
+      let u: string | null = null;
+      let minD = Infinity;
+      for (const n of unvisited) {
+        if (dist[n] < minD) {
+          minD = dist[n];
+          u = n;
+        }
+      }
+      if (!u || minD === Infinity) break;
+      unvisited.delete(u);
+      if (u === dst) break;
+
+      for (const l of topology.links) {
+        if (!l.is_up) continue;
+        let v: string | null = null;
+        if (l.source === u) v = l.target;
+        else if (l.target === u) v = l.source;
+        if (v && unvisited.has(v)) {
+          const alt = dist[u] + (l.cost ?? 1);
+          if (alt < dist[v]) {
+            dist[v] = alt;
+            prev[v] = u;
+          }
+        }
+      }
+    }
+
+    if (dist[dst] === Infinity || !prev[dst]) {
+      return { path: [src], cost: Infinity, hops: 0, isOptimal: false, status: 'Unreachable' };
+    }
+
+    const path: string[] = [];
+    let curr: string | null = dst;
+    while (curr) {
+      path.unshift(curr);
+      curr = prev[curr];
+    }
+    return {
+      path,
+      cost: dist[dst],
+      hops: Math.max(0, path.length - 1),
+      isOptimal: true,
+      status: 'Optimal (Dijkstra)',
+    };
+  };
+
+  // Trace algorithm's computed path from authentic final routing tables
+  const traceAlgorithmPath = (proto: string): TracedPathResult => {
+    if (pathSrc === pathDst) {
+      return { path: [pathSrc], cost: 0, hops: 0, isOptimal: true, status: 'Identical' };
+    }
+
+    const protoTables = report?.final_routes?.[proto];
+    if (!protoTables) {
+      return computeDijkstraPath(pathSrc, pathDst);
+    }
+
+    const visited = new Set<string>();
+    const path: string[] = [pathSrc];
+    let curr = pathSrc;
+    let totalCost = 0;
+
+    while (curr !== pathDst && !visited.has(curr) && path.length <= nodeIds.length + 2) {
+      visited.add(curr);
+      const nodeRoutes = protoTables[curr] || [];
+      const routeEntry = nodeRoutes.find(
+        (r: any) => r.dst === pathDst || r.destination === pathDst
+      );
+
+      if (!routeEntry || !routeEntry.next_hop || routeEntry.next_hop === curr) {
+        return { path, cost: Infinity, hops: path.length - 1, isOptimal: false, status: 'Unreachable / Dropped' };
+      }
+
+      const nextHop = routeEntry.next_hop;
+      path.push(nextHop);
+
+      if (curr === pathSrc) {
+        totalCost = (routeEntry as any).cost ?? (routeEntry as any).metric ?? 0;
+      }
+      curr = nextHop;
+    }
+
+    if (curr === pathDst) {
+      return {
+        path,
+        cost: totalCost,
+        hops: path.length - 1,
+        isOptimal: true,
+        status: 'Converged Route',
+      };
+    }
+
+    return { path, cost: Infinity, hops: path.length - 1, isOptimal: false, status: 'Routing Loop' };
+  };
+
+  // Computed paths for Protocol A and Protocol B
+  const pathResultA = useMemo(() => traceAlgorithmPath(protoA), [protoA, pathSrc, pathDst, report, topology]);
+  const pathResultB = useMemo(() => traceAlgorithmPath(protoB), [protoB, pathSrc, pathDst, report, topology]);
+  const isPathIdentical = useMemo(() => {
+    return pathResultA.path.join('➔') === pathResultB.path.join('➔') && pathResultA.cost === pathResultB.cost;
+  }, [pathResultA, pathResultB]);
 
   // Run Benchmark & fetch packet traces
   const handleRunComparison = async () => {
@@ -166,10 +308,8 @@ export const CompareWorkbench: React.FC<CompareWorkbenchProps> = ({
       const ev = sentEvents[i];
       const key = `${ev.src}->${ev.dst}`;
       const latencyMs = (linkLatencyMap.get(key) || 0.02) * 1000;
-      // Visually, each packet travels across the link in 1.1s to 1.5s
       const transitDuration = 1.1 + Math.min(0.5, (latencyMs / 100) * 0.4);
 
-      // Causal visual start time mapped from algorithm's recorded microsecond timestamps
       const startT = (ev.ts / simSpan) * spreadDuration;
       const endT = startT + transitDuration;
 
@@ -199,12 +339,31 @@ export const CompareWorkbench: React.FC<CompareWorkbenchProps> = ({
     return { couriers, deliveredCount, inFlightCount };
   };
 
-  // Render network topology & packet couriers on canvas
+  // Helper: check if an undirected link is in the active path
+  const isLinkInPath = (u: string, v: string, path: string[]): boolean => {
+    for (let i = 0; i < path.length - 1; i++) {
+      if ((path[i] === u && path[i + 1] === v) || (path[i] === v && path[i + 1] === u)) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  const getPathLinkDirection = (u: string, v: string, path: string[]): 'forward' | 'reverse' | null => {
+    for (let i = 0; i < path.length - 1; i++) {
+      if (path[i] === u && path[i + 1] === v) return 'forward';
+      if (path[i] === v && path[i + 1] === u) return 'reverse';
+    }
+    return null;
+  };
+
+  // Render network topology, glowing active path, & packet couriers on canvas
   const renderCanvas = (
     canvas: HTMLCanvasElement | null,
     protoName: string,
     accentColor: string,
-    particleColor: string
+    particleColor: string,
+    activePathResult: TracedPathResult
   ) => {
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
@@ -223,8 +382,6 @@ export const CompareWorkbench: React.FC<CompareWorkbenchProps> = ({
     ctx.scale(dpr, dpr);
     ctx.clearRect(0, 0, width, height);
 
-    // Compute bounding box of topology nodes
-    const nodeIds = Object.keys(topology.nodes);
     if (nodeIds.length === 0) {
       ctx.restore();
       return;
@@ -275,46 +432,121 @@ export const CompareWorkbench: React.FC<CompareWorkbenchProps> = ({
       ctx.stroke();
     }
 
-    // 2. Draw Links
+    const pathNodes = activePathResult.path;
+
+    // 2. Draw Inactive / Background Links
     for (const link of topology.links) {
       const p1 = screenCoords[link.source];
       const p2 = screenCoords[link.target];
       if (!p1 || !p2) continue;
 
+      const inPath = isLinkInPath(link.source, link.target, pathNodes);
+      if (inPath) continue; // Draw active path links with glow on top!
+
       ctx.beginPath();
       ctx.moveTo(p1.x, p1.y);
       ctx.lineTo(p2.x, p2.y);
-      ctx.strokeStyle = 'rgba(140, 110, 80, 0.28)';
-      ctx.lineWidth = 2;
+      ctx.strokeStyle = 'rgba(140, 110, 80, 0.22)';
+      ctx.lineWidth = 1.5;
       ctx.stroke();
 
-      // Midpoint cost tag
+      // Subtle cost tag
       const midX = (p1.x + p2.x) / 2;
       const midY = (p1.y + p2.y) / 2;
-      ctx.fillStyle = 'rgba(40, 32, 24, 0.75)';
+      ctx.fillStyle = 'rgba(32, 26, 20, 0.65)';
       ctx.beginPath();
-      ctx.arc(midX, midY, 8, 0, Math.PI * 2);
+      ctx.arc(midX, midY, 7, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = 'rgba(180, 150, 100, 0.4)';
+      ctx.strokeStyle = 'rgba(160, 130, 90, 0.3)';
       ctx.lineWidth = 1;
       ctx.stroke();
 
-      ctx.fillStyle = '#f5eedc';
-      ctx.font = '9px monospace';
+      ctx.fillStyle = '#cfc5b4';
+      ctx.font = '8px monospace';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(String(link.cost ?? 1), midX, midY);
     }
 
-    // 3. Draw Nodes
+    // 2b. Draw ACTIVE ROUTED PATH LINKS (Prominent Radiant Glow)
+    for (const link of topology.links) {
+      const p1 = screenCoords[link.source];
+      const p2 = screenCoords[link.target];
+      if (!p1 || !p2) continue;
+
+      const inPath = isLinkInPath(link.source, link.target, pathNodes);
+      if (!inPath) continue;
+
+      // Outer Neon Glow
+      ctx.save();
+      ctx.shadowColor = accentColor;
+      ctx.shadowBlur = 14;
+      ctx.strokeStyle = accentColor;
+      ctx.lineWidth = 6;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(p1.x, p1.y);
+      ctx.lineTo(p2.x, p2.y);
+      ctx.stroke();
+      ctx.restore();
+
+      // Inner Crisp Core
+      ctx.strokeStyle = '#FFFFFF';
+      ctx.lineWidth = 2.2;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(p1.x, p1.y);
+      ctx.lineTo(p2.x, p2.y);
+      ctx.stroke();
+
+      // Traveling Motion Pulse along the path link
+      const dir = getPathLinkDirection(link.source, link.target, pathNodes);
+      const startPos = dir === 'forward' ? p1 : p2;
+      const endPos = dir === 'forward' ? p2 : p1;
+      const pulseProgress = ((playbackTime * 1.5) % 1.0);
+      const pulseX = startPos.x + (endPos.x - startPos.x) * pulseProgress;
+      const pulseY = startPos.y + (endPos.y - startPos.y) * pulseProgress;
+
+      ctx.beginPath();
+      ctx.arc(pulseX, pulseY, 3.5, 0, Math.PI * 2);
+      ctx.fillStyle = '#FFFFFF';
+      ctx.shadowColor = particleColor;
+      ctx.shadowBlur = 6;
+      ctx.fill();
+
+      // Highlighted Midpoint Cost Badge
+      const midX = (p1.x + p2.x) / 2;
+      const midY = (p1.y + p2.y) / 2;
+      ctx.fillStyle = accentColor;
+      ctx.beginPath();
+      ctx.arc(midX, midY, 9, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#FFFFFF';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = 'bold 9px monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(String(link.cost ?? 1), midX, midY);
+    }
+
+    // 3. Draw Nodes with SRC / DST / Intermediate Path Illumination
     for (const id of nodeIds) {
       const pos = screenCoords[id];
       if (!pos) continue;
 
+      const isSrc = id === pathSrc;
+      const isDst = id === pathDst;
+      const inPath = pathNodes.includes(id);
+
       // Outer glow
       ctx.beginPath();
-      ctx.arc(pos.x, pos.y, 14, 0, Math.PI * 2);
-      ctx.fillStyle = accentColor.replace(')', ', 0.15)').replace('rgb', 'rgba');
+      ctx.arc(pos.x, pos.y, isSrc || isDst ? 17 : inPath ? 14 : 12, 0, Math.PI * 2);
+      ctx.fillStyle = isSrc || isDst || inPath
+        ? accentColor.replace(')', ', 0.22)').replace('rgb', 'rgba')
+        : 'rgba(255, 255, 255, 0.04)';
       ctx.fill();
 
       // Node circle
@@ -322,8 +554,8 @@ export const CompareWorkbench: React.FC<CompareWorkbenchProps> = ({
       ctx.arc(pos.x, pos.y, 11, 0, Math.PI * 2);
       ctx.fillStyle = '#1e1a17';
       ctx.fill();
-      ctx.strokeStyle = accentColor;
-      ctx.lineWidth = 2;
+      ctx.strokeStyle = isSrc ? '#D4AF37' : isDst ? '#2EC4B6' : inPath ? accentColor : 'rgba(180, 150, 120, 0.4)';
+      ctx.lineWidth = isSrc || isDst || inPath ? 2.5 : 1.5;
       ctx.stroke();
 
       // Node label
@@ -332,6 +564,17 @@ export const CompareWorkbench: React.FC<CompareWorkbenchProps> = ({
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(id, pos.x, pos.y);
+
+      // SRC / DST Badges
+      if (isSrc) {
+        ctx.fillStyle = '#D4AF37';
+        ctx.font = 'bold 8px monospace';
+        ctx.fillText('SRC', pos.x, pos.y - 17);
+      } else if (isDst) {
+        ctx.fillStyle = '#2EC4B6';
+        ctx.font = 'bold 8px monospace';
+        ctx.fillText('DST', pos.x, pos.y - 17);
+      }
     }
 
     // 4. Draw Animated Moving Packet Couriers
@@ -339,7 +582,6 @@ export const CompareWorkbench: React.FC<CompareWorkbenchProps> = ({
     const { couriers } = getActiveCouriers(protoName, traces, screenCoords);
 
     for (const courier of couriers) {
-      // Outer pulse glow
       const grad = ctx.createRadialGradient(
         courier.x,
         courier.y,
@@ -382,7 +624,7 @@ export const CompareWorkbench: React.FC<CompareWorkbenchProps> = ({
       }
     }
 
-    // 5. Convergence Halo / Celebration Ring if already converged at playbackTime
+    // 5. Convergence Halo / Celebration Ring
     const metrics = report?.metrics[protoName];
     const simSpan = Math.max(0.001, simMaxTs);
     const spreadDuration = Math.max(2.0, TOTAL_VISUAL_RACE_S - 2.5);
@@ -390,7 +632,7 @@ export const CompareWorkbench: React.FC<CompareWorkbenchProps> = ({
 
     if (metrics && playbackTime >= visualConvTime) {
       ctx.fillStyle = 'rgba(46, 196, 182, 0.16)';
-      ctx.fillRect(0, height - 28, width, 28);
+      ctx.fillRect(0, height - 26, width, 26);
       ctx.fillStyle = '#2ec4b6';
       ctx.font = 'bold 10px monospace';
       ctx.textAlign = 'right';
@@ -398,7 +640,7 @@ export const CompareWorkbench: React.FC<CompareWorkbenchProps> = ({
       ctx.fillText(
         `✓ CONVERGED (${metrics.convergence_time_s.toFixed(3)}s simulation time)`,
         width - 12,
-        height - 14
+        height - 13
       );
     }
 
@@ -408,9 +650,9 @@ export const CompareWorkbench: React.FC<CompareWorkbenchProps> = ({
   // Render both canvases on animation tick / playback update
   useEffect(() => {
     if (!isOpen) return;
-    renderCanvas(canvasRefA.current, protoA, '#d95d39', 'rgb(255, 122, 89)');
-    renderCanvas(canvasRefB.current, protoB, '#2a9d8f', 'rgb(46, 196, 182)');
-  }, [isOpen, playbackTime, report, protoA, protoB, topology]);
+    renderCanvas(canvasRefA.current, protoA, '#d95d39', 'rgb(255, 122, 89)', pathResultA);
+    renderCanvas(canvasRefB.current, protoB, '#2a9d8f', 'rgb(46, 196, 182)', pathResultB);
+  }, [isOpen, playbackTime, report, protoA, protoB, topology, pathResultA, pathResultB]);
 
   if (!isOpen) return null;
 
@@ -440,7 +682,7 @@ export const CompareWorkbench: React.FC<CompareWorkbenchProps> = ({
       <div
         className="carto-card"
         style={{
-          width: '1120px',
+          width: '1140px',
           maxWidth: '96vw',
           maxHeight: '92vh',
           display: 'flex',
@@ -458,7 +700,7 @@ export const CompareWorkbench: React.FC<CompareWorkbenchProps> = ({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            padding: '0.9rem 1.4rem',
+            padding: '0.85rem 1.4rem',
             borderBottom: '1px solid var(--border-ink)',
             background: 'var(--surface-inset)',
           }}
@@ -501,7 +743,7 @@ export const CompareWorkbench: React.FC<CompareWorkbenchProps> = ({
               >
                 <span>COURSE SCENARIO LAB</span>
                 <span>•</span>
-                <span>SIDE-BY-SIDE REAL-TIME PACKET PROPAGATION & CONVERGENCE RACE</span>
+                <span>SIDE-BY-SIDE REAL-TIME PACKET RACE & PATH VERIFICATION</span>
               </div>
             </div>
           </div>
@@ -517,7 +759,7 @@ export const CompareWorkbench: React.FC<CompareWorkbenchProps> = ({
         {/* Algorithm Selection & Run Command Bar */}
         <div
           style={{
-            padding: '0.9rem 1.4rem',
+            padding: '0.8rem 1.4rem',
             borderBottom: '1px solid var(--border-ink)',
             display: 'flex',
             alignItems: 'center',
@@ -626,6 +868,156 @@ export const CompareWorkbench: React.FC<CompareWorkbenchProps> = ({
             <Play size={15} />
             {isComparing ? 'Running Benchmark & Tracing...' : 'Run Visual Comparison Race'}
           </button>
+        </div>
+
+        {/* Interactive Path Comparison & Highlighting Dock */}
+        <div
+          style={{
+            padding: '0.65rem 1.4rem',
+            borderBottom: '1px solid var(--border-ink)',
+            background: 'var(--surface-inset)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '1rem',
+            flexWrap: 'wrap',
+          }}
+        >
+          {/* Source & Destination Selector */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+              <Navigation size={15} color="var(--accent-brass)" />
+              <span style={{ fontSize: '0.78rem', fontWeight: 800, fontFamily: 'var(--font-heading)' }}>
+                Highlight Path:
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>SRC</span>
+              <select
+                value={pathSrc}
+                onChange={(e) => setPathSrc(e.target.value)}
+                style={{
+                  padding: '0.25rem 0.5rem',
+                  borderRadius: '4px',
+                  border: '1px solid var(--border-ink)',
+                  background: 'var(--surface-card)',
+                  color: 'var(--text-primary)',
+                  fontSize: '0.8rem',
+                  fontWeight: 700,
+                  fontFamily: 'var(--font-mono)',
+                }}
+              >
+                {nodeIds.map((nid) => (
+                  <option key={nid} value={nid}>{nid}</option>
+                ))}
+              </select>
+
+              <ArrowRight size={13} color="var(--accent-brass)" />
+
+              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>DST</span>
+              <select
+                value={pathDst}
+                onChange={(e) => setPathDst(e.target.value)}
+                style={{
+                  padding: '0.25rem 0.5rem',
+                  borderRadius: '4px',
+                  border: '1px solid var(--border-ink)',
+                  background: 'var(--surface-card)',
+                  color: 'var(--text-primary)',
+                  fontSize: '0.8rem',
+                  fontWeight: 700,
+                  fontFamily: 'var(--font-mono)',
+                }}
+              >
+                {nodeIds.map((nid) => (
+                  <option key={nid} value={nid}>{nid}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Dual Path Comparison Badges */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.7rem', flex: 1, minWidth: '320px', flexWrap: 'wrap' }}>
+            {/* Path A */}
+            <div
+              style={{
+                flex: 1,
+                minWidth: '180px',
+                padding: '0.3rem 0.6rem',
+                borderRadius: '4px',
+                background: 'rgba(217, 93, 57, 0.12)',
+                border: '1px solid var(--accent-terracotta)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '0.5rem',
+              }}
+              title={`Active path highlighted on Canvas A for ${protoA}`}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                <span style={{ fontSize: '0.68rem', fontWeight: 800, color: 'var(--accent-terracotta)', textTransform: 'uppercase' }}>
+                  {protoA.replace('_', ' ')}:
+                </span>
+                <span style={{ fontSize: '0.75rem', fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
+                  {pathResultA.path.join(' ➔ ')}
+                </span>
+              </div>
+              <span style={{ fontSize: '0.7rem', fontFamily: 'var(--font-mono)', color: 'var(--accent-terracotta)', fontWeight: 700 }}>
+                Cost: {pathResultA.cost === Infinity ? '∞' : pathResultA.cost} ({pathResultA.hops} hops)
+              </span>
+            </div>
+
+            {/* Path B */}
+            <div
+              style={{
+                flex: 1,
+                minWidth: '180px',
+                padding: '0.3rem 0.6rem',
+                borderRadius: '4px',
+                background: 'rgba(42, 157, 143, 0.12)',
+                border: '1px solid var(--accent-verdigris)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '0.5rem',
+              }}
+              title={`Active path highlighted on Canvas B for ${protoB}`}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                <span style={{ fontSize: '0.68rem', fontWeight: 800, color: 'var(--accent-verdigris)', textTransform: 'uppercase' }}>
+                  {protoB.replace('_', ' ')}:
+                </span>
+                <span style={{ fontSize: '0.75rem', fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
+                  {pathResultB.path.join(' ➔ ')}
+                </span>
+              </div>
+              <span style={{ fontSize: '0.7rem', fontFamily: 'var(--font-mono)', color: 'var(--accent-verdigris)', fontWeight: 700 }}>
+                Cost: {pathResultB.cost === Infinity ? '∞' : pathResultB.cost} ({pathResultB.hops} hops)
+              </span>
+            </div>
+
+            {/* Path Parity Status */}
+            <div
+              style={{
+                padding: '0.3rem 0.6rem',
+                borderRadius: '4px',
+                background: isPathIdentical
+                  ? 'oklch(from var(--accent-verdigris) l c h / 0.16)'
+                  : 'oklch(from var(--accent-amber) l c h / 0.16)',
+                border: `1px solid ${isPathIdentical ? 'var(--accent-verdigris)' : 'var(--accent-amber)'}`,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                fontSize: '0.72rem',
+                fontWeight: 700,
+                color: isPathIdentical ? 'var(--accent-verdigris)' : 'var(--accent-amber)',
+              }}
+            >
+              <Route size={13} />
+              <span>{isPathIdentical ? 'Paths Identical' : 'Alternative Paths'}</span>
+            </div>
+          </div>
         </div>
 
         {/* Scrollable Main Visual Lab */}
@@ -752,17 +1144,17 @@ export const CompareWorkbench: React.FC<CompareWorkbenchProps> = ({
                   <div
                     style={{
                       position: 'absolute',
-                      inset: 0,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      background: 'rgba(20, 16, 12, 0.4)',
-                      color: 'var(--text-muted)',
-                      fontSize: '0.82rem',
+                      bottom: '8px',
+                      left: '8px',
+                      padding: '0.2rem 0.5rem',
+                      borderRadius: '4px',
+                      background: 'rgba(20, 16, 12, 0.75)',
+                      color: 'var(--accent-brass)',
+                      fontSize: '0.72rem',
                       fontFamily: 'var(--font-mono)',
                     }}
                   >
-                    Click &apos;Run Visual Comparison Race&apos; to simulate
+                    Path preview active · Click &apos;Run Visual Comparison Race&apos; to race packets
                   </div>
                 )}
               </div>
@@ -866,17 +1258,17 @@ export const CompareWorkbench: React.FC<CompareWorkbenchProps> = ({
                   <div
                     style={{
                       position: 'absolute',
-                      inset: 0,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      background: 'rgba(20, 16, 12, 0.4)',
-                      color: 'var(--text-muted)',
-                      fontSize: '0.82rem',
+                      bottom: '8px',
+                      left: '8px',
+                      padding: '0.2rem 0.5rem',
+                      borderRadius: '4px',
+                      background: 'rgba(20, 16, 12, 0.75)',
+                      color: 'var(--accent-brass)',
+                      fontSize: '0.72rem',
                       fontFamily: 'var(--font-mono)',
                     }}
                   >
-                    Click &apos;Run Visual Comparison Race&apos; to simulate
+                    Path preview active · Click &apos;Run Visual Comparison Race&apos; to race packets
                   </div>
                 )}
               </div>
@@ -1090,6 +1482,47 @@ export const CompareWorkbench: React.FC<CompareWorkbenchProps> = ({
                     </tr>
                   </thead>
                   <tbody>
+                    {/* Selected Routed Path Row */}
+                    <tr style={{ borderBottom: '1px solid var(--border-ink)', background: 'oklch(from var(--accent-brass) l c h / 0.05)' }}>
+                      <td style={{ padding: '0.6rem 1rem', fontWeight: 700 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                          <Route size={14} color="var(--accent-brass)" />
+                          Routed Path ({pathSrc} ➔ {pathDst})
+                        </div>
+                      </td>
+                      <td style={{ padding: '0.6rem 1rem', color: 'var(--accent-terracotta)', fontWeight: 600 }}>
+                        {pathResultA.path.join(' ➔ ')}
+                        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                          Cost: {pathResultA.cost} ({pathResultA.hops} hops)
+                        </div>
+                      </td>
+                      <td style={{ padding: '0.6rem 1rem', color: 'var(--accent-verdigris)', fontWeight: 600 }}>
+                        {pathResultB.path.join(' ➔ ')}
+                        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                          Cost: {pathResultB.cost} ({pathResultB.hops} hops)
+                        </div>
+                      </td>
+                      <td style={{ padding: '0.6rem 1rem' }}>
+                        {isPathIdentical ? (
+                          <span style={{ color: 'var(--accent-brass)', fontWeight: 700 }}>
+                            🤝 Identical Optimal Path
+                          </span>
+                        ) : pathResultA.cost < pathResultB.cost ? (
+                          <span style={{ color: 'var(--accent-terracotta)', fontWeight: 700 }}>
+                            🏆 {protoA.replace('_', ' ')} (Lower Cost)
+                          </span>
+                        ) : pathResultB.cost < pathResultA.cost ? (
+                          <span style={{ color: 'var(--accent-verdigris)', fontWeight: 700 }}>
+                            🏆 {protoB.replace('_', ' ')} (Lower Cost)
+                          </span>
+                        ) : (
+                          <span style={{ color: 'var(--accent-amber)', fontWeight: 700 }}>
+                            ⚡ Equal Cost, Disjoint Paths
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+
                     {/* Convergence Time */}
                     <tr style={{ borderBottom: '1px solid var(--border-ink)' }}>
                       <td style={{ padding: '0.6rem 1rem', fontWeight: 600 }}>
@@ -1257,7 +1690,7 @@ export const CompareWorkbench: React.FC<CompareWorkbenchProps> = ({
                 fontSize: '0.85rem',
               }}
             >
-              Select two algorithms above and click <strong>Run Visual Comparison Race</strong> to watch real packets stream between nodes side-by-side!
+              Select two algorithms above and click <strong>Run Visual Comparison Race</strong> to watch real packets stream between nodes side-by-side with illuminated path comparisons!
             </div>
           )}
         </div>

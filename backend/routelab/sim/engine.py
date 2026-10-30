@@ -404,15 +404,18 @@ class SimulationEngine:
     async def _realtime_monitor_loop(self) -> None:
         """Periodic loop processing scheduled events, convergence checks, and frame deltas."""
         while self._is_running:
+            is_paused = getattr(self.clock, "is_paused", False)
             now = self.clock.now()
-            # Process scheduled events
-            for ev in self._scheduled_events:
-                if not ev.executed and ev.timestamp <= now:
-                    ev.executed = True
-                    self._execute_scheduled_event(ev)
 
-            # Check convergence
-            self.check_convergence()
+            # Process scheduled events only when not paused
+            if not is_paused:
+                for ev in self._scheduled_events:
+                    if not ev.executed and ev.timestamp <= now:
+                        ev.executed = True
+                        self._execute_scheduled_event(ev)
+
+                # Check convergence
+                self.check_convergence()
 
             # Batch frame delta for WebSocket live telemetry
             if self._delta_listeners:
@@ -433,12 +436,16 @@ class SimulationEngine:
                     {
                         "type": "frame",
                         "time": now,
+                        "paused": is_paused,
                         "converged": self._is_converged,
                         "nodes": nodes_snapshot,
                     }
                 )
 
-            await self.clock.sleep(0.05)  # 20 FPS
+            if is_paused:
+                await asyncio.sleep(0.1)
+            else:
+                await self.clock.sleep(0.05)  # 20 FPS
 
     def _execute_scheduled_event(self, ev: ScheduledSimulationEvent) -> None:
         if ev.action == "link_down":

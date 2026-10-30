@@ -37,6 +37,7 @@ export interface RouteEntry {
   destination: string;
   next_hop: string | null;
   metric: number;
+  cost?: number;
   protocol?: string;
   as_path?: number[];
   status?: string;
@@ -107,4 +108,5 @@ export interface ComparisonReportResponse {
   winners: Record<string, string>;
   summary_notes: string[];
   packet_traces: Record<string, PacketTraceEvent[]>;
+  final_routes?: Record<string, Record<string, RouteEntry[]>>;
 }

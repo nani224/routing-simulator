@@ -60,6 +60,24 @@ async def inject_event(req: InjectEventRequest) -> dict[str, Any]:
         raise HTTPException(status_code=400, detail=f"Failed to inject event: {exc}") from exc
 
 
+@router.post("/simulation/pause")
+def pause_simulation() -> dict[str, Any]:
+    """Pause active simulation execution."""
+    return session_manager.pause()
+
+
+@router.post("/simulation/resume")
+def resume_simulation() -> dict[str, Any]:
+    """Resume active simulation execution."""
+    return session_manager.resume()
+
+
+@router.post("/simulation/events")
+async def inject_events_alias(req: InjectEventRequest) -> dict[str, Any]:
+    """Alias for event injection."""
+    return await inject_event(req)
+
+
 @router.post("/simulation/stop")
 async def stop_simulation() -> dict[str, Any]:
     """Stop active simulation session."""

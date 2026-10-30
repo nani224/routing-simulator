@@ -228,21 +228,36 @@ class SimulationSessionManager:
                 "clock_mode": clock_mode,
             }
 
+    def pause(self) -> dict[str, Any]:
+        """Pause active simulation execution."""
+        if self.clock and hasattr(self.clock, "pause"):
+            self.clock.pause()
+        cur_t = self.clock.now() if self.clock else 0.0
+        return {"status": "paused", "current_time": round(cur_t, 4)}
+
+    def resume(self) -> dict[str, Any]:
+        """Resume active simulation execution."""
+        if self.clock and hasattr(self.clock, "resume"):
+            self.clock.resume()
+        cur_t = self.clock.now() if self.clock else 0.0
+        return {"status": "resumed", "current_time": round(cur_t, 4)}
+
     async def step(self, duration_s: float = 0.1) -> dict[str, Any]:
-        """Advance virtual simulation clock forward by a discrete duration step."""
+        """Advance simulation clock forward by a discrete duration step."""
         if not self.engine or not self.clock:
             raise RuntimeError("Simulation engine is not initialized")
 
-        if not self.clock.is_virtual:
-            raise ValueError("Step debugging is only permitted in virtual clock mode")
+        if self.clock.is_virtual:
+            assert isinstance(self.clock, VirtualClock)
+            target_time = self.clock.now() + duration_s
+            await self.clock.run_until(target_time)
+        elif hasattr(self.clock, "step"):
+            self.clock.step(duration_s)
 
-        assert isinstance(self.clock, VirtualClock)
-        target_time = self.clock.now() + duration_s
-        await self.clock.run_until(target_time)
         converged = self.engine.check_convergence()
 
         return {
-            "current_time": self.clock.now(),
+            "current_time": round(self.clock.now(), 4),
             "converged": converged,
             "in_flight_packets": sum(lnk.in_flight_count() for lnk in self.engine.links.values()),
         }

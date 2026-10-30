@@ -43,6 +43,7 @@ interface InstrumentBarProps {
   onOpenCompare: () => void;
   onOpenScenarios: () => void;
   onOpenAttacks: () => void;
+  hasActiveAttacks?: boolean;
   onOpenLogs: () => void;
   onOpenExport: () => void;
   onOpenExplain: () => void;
@@ -73,6 +74,7 @@ export const InstrumentBar: React.FC<InstrumentBarProps> = ({
   onOpenCompare,
   onOpenScenarios,
   onOpenAttacks,
+  hasActiveAttacks = false,
   onOpenLogs,
   onOpenExport,
   onOpenExplain,
@@ -295,9 +297,27 @@ export const InstrumentBar: React.FC<InstrumentBarProps> = ({
           Compare
         </button>
 
-        <button className="btn-brass" onClick={onOpenAttacks} title="Failure & Poisoning Attack Lab">
+        <button
+          className={hasActiveAttacks ? 'btn-brass btn-brass-primary' : 'btn-brass'}
+          style={
+            hasActiveAttacks
+              ? {
+                  background: 'var(--accent-crimson)',
+                  borderColor: 'var(--accent-crimson)',
+                  color: '#FFFFFF',
+                  boxShadow: '0 0 8px oklch(from var(--accent-crimson) l c h / 0.5)',
+                }
+              : undefined
+          }
+          onClick={onOpenAttacks}
+          title={
+            hasActiveAttacks
+              ? 'Active Attacks / Perturbations running — Click to inspect or clear'
+              : 'Failure & Poisoning Attack Lab'
+          }
+        >
           <Zap size={13} />
-          Attacks
+          {hasActiveAttacks ? 'Attacks (Active)' : 'Attacks'}
         </button>
 
         <button className="btn-brass" onClick={onOpenScenarios} title="Course Preset Scenarios">

@@ -97,6 +97,13 @@ class RealtimeClock(Clock):
             self._is_paused = False
             self._pause_event.set()
 
+    def step(self, delta_s: float = 0.1) -> float:
+        """Step simulation time forward by delta_s while paused."""
+        if not self._is_paused:
+            self.pause()
+        self._sim_offset += delta_s
+        return self.now()
+
     def now(self) -> float:
         if self._is_paused:
             wall_elapsed = self._pause_start_time - self._start_wall_time

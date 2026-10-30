@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import type {
   TopologyData,
   ProtocolType,
@@ -21,6 +21,7 @@ import { VirtualizedPacketLog } from './components/VirtualizedPacketLog';
 import { ExportModal } from './components/ExportModal';
 import { ExplainModeModal } from './components/ExplainModeModal';
 import { SettingsModal } from './components/SettingsModal';
+import { AlertTriangle, RotateCcw } from 'lucide-react';
 
 interface HistoricalSnapshot {
   time: number;
@@ -319,7 +320,12 @@ export const App: React.FC = () => {
       // 5. Apply only single latest frame from batch
       if (latestFrame) {
         lastWsFrameTime.current = performance.now();
-        if (typeof latestFrame.time === 'number') setSimTime(latestFrame.time);
+        if (typeof latestFrame.time === 'number' && !isScrubbing.current) {
+          setSimTime(latestFrame.time);
+        }
+        if (typeof latestFrame.paused === 'boolean') {
+          setIsRunning(!latestFrame.paused);
+        }
         if (typeof latestFrame.converged === 'boolean') setIsConverged(latestFrame.converged);
         if (latestFrame.nodes) {
           const nextRoutes: Record<string, RouteEntry[]> = {};
@@ -477,12 +483,20 @@ export const App: React.FC = () => {
 
   const handleStep = () => {
     playChime('click');
-    setSimTime((t) => t + 0.1);
-    RouteLabApi.stepSimulation(0.1);
+    setIsRunning(false);
+    RouteLabApi.pauseSimulation();
+    RouteLabApi.stepSimulation(0.1).then((res) => {
+      if (res && typeof res.current_time === 'number') {
+        setSimTime(res.current_time);
+      } else {
+        setSimTime((t) => Number((t + 0.1).toFixed(3)));
+      }
+    });
   };
 
   const handleReset = () => {
     playChime('click');
+    setIsRunning(true);
     setSimTime(0.0);
     setIsConverged(false);
     setConvTime(0.0);
@@ -641,6 +655,226 @@ export const App: React.FC = () => {
     setIsConverged(false);
   };
 
+  // Active perturbations & attacks state
+  const crashedNodes = useMemo(() => {
+    return Object.entries(nodeTelemetry)
+      .filter(([_, tel]) => tel.isCrashed)
+      .map(([id]) => id);
+  }, [nodeTelemetry]);
+
+  const severedLinks = useMemo(() => {
+    return topology.links.filter((l) => !l.is_up);
+  }, [topology.links]);
+
+  const baselineTopology = useMemo(() => {
+    return RouteLabApi.getFallbackTopology(currentTopologyName);
+  }, [currentTopologyName]);
+
+  const hasMutatedCosts = useMemo(() => {
+    const baseMap = new Map<string, number>();
+    for (const lnk of baselineTopology.links) {
+      const u = lnk.source < lnk.target ? lnk.source : lnk.target;
+      const v = lnk.source < lnk.target ? lnk.target : lnk.source;
+      baseMap.set(`${u}<->${v}`, lnk.cost);
+    }
+    return topology.links.some((lnk) => {
+      const u = lnk.source < lnk.target ? lnk.source : lnk.target;
+      const v = lnk.source < lnk.target ? lnk.target : lnk.source;
+      const baseCost = baseMap.get(`${u}<->${v}`);
+      return baseCost !== undefined && baseCost !== lnk.cost;
+    });
+  }, [topology.links, baselineTopology]);
+
+  const hasActiveAttacks =
+    crashedNodes.length > 0 ||
+    severedLinks.length > 0 ||
+    currentProtocol === 'poisoning_attack' ||
+    currentProtocol === 'secure_dv' ||
+    hasMutatedCosts;
+
+  const handleRestoreAllLinks = () => {
+    playChime('click');
+    setTopology((prev) => ({
+      ...prev,
+      links: prev.links.map((lnk) => ({ ...lnk, is_up: true })),
+    }));
+    setIsConverged(false);
+
+    for (const lnk of severedLinks) {
+      RouteLabApi.injectEvent('link_up', { u: lnk.source, v: lnk.target, cost: lnk.cost });
+    }
+
+    setEvents((evs) => [
+      ...evs,
+      {
+        seq: evs.length + 1,
+        ts: simTime,
+        type: 'all_links_restored',
+        src: 'TopologyAdmin',
+        data: { restored_count: severedLinks.length },
+      },
+    ]);
+  };
+
+  const handleRecoverAllNodes = () => {
+    playChime('click');
+    setNodeTelemetry((prev) => {
+      const updated = { ...prev };
+      for (const nid of Object.keys(updated)) {
+        updated[nid] = { ...updated[nid], isCrashed: false };
+      }
+      return updated;
+    });
+
+    setTopology((prev) => ({
+      ...prev,
+      links: prev.links.map((lnk) => ({ ...lnk, is_up: true })),
+    }));
+    setIsConverged(false);
+
+    for (const nid of crashedNodes) {
+      RouteLabApi.injectEvent('node_recover', { node_id: nid });
+    }
+
+    setEvents((evs) => [
+      ...evs,
+      {
+        seq: evs.length + 1,
+        ts: simTime,
+        type: 'all_nodes_recovered',
+        src: 'TopologyAdmin',
+        data: { recovered_nodes: crashedNodes },
+      },
+    ]);
+  };
+
+  const handleResetLinkCosts = () => {
+    playChime('click');
+    const baseMap = new Map<string, number>();
+    for (const lnk of baselineTopology.links) {
+      const u = lnk.source < lnk.target ? lnk.source : lnk.target;
+      const v = lnk.source < lnk.target ? lnk.target : lnk.source;
+      baseMap.set(`${u}<->${v}`, lnk.cost);
+    }
+
+    setTopology((prev) => ({
+      ...prev,
+      links: prev.links.map((lnk) => {
+        const u = lnk.source < lnk.target ? lnk.source : lnk.target;
+        const v = lnk.source < lnk.target ? lnk.target : lnk.source;
+        const baseCost = baseMap.get(`${u}<->${v}`) ?? lnk.cost;
+        if (lnk.cost !== baseCost) {
+          RouteLabApi.injectEvent('link_cost', { u: lnk.source, v: lnk.target, cost: baseCost });
+        }
+        return { ...lnk, cost: baseCost };
+      }),
+    }));
+
+    setIsConverged(false);
+    setEvents((evs) => [
+      ...evs,
+      {
+        seq: evs.length + 1,
+        ts: simTime,
+        type: 'link_costs_reset',
+        src: 'TopologyAdmin',
+        data: { status: 'reverted_to_baseline_metrics' },
+      },
+    ]);
+  };
+
+  const handleClearPoisonAttack = async () => {
+    playChime('converge');
+    setCurrentProtocol('distance_vector');
+    setIsConverged(false);
+
+    setEvents((evs) => [
+      ...evs,
+      {
+        seq: evs.length + 1,
+        ts: simTime,
+        type: 'attack_cleared',
+        src: 'SecurityAdmin',
+        data: { status: 'poisoning_attack_cleared', reverted_protocol: 'distance_vector' },
+      },
+    ]);
+
+    try {
+      await RouteLabApi.startSimulation(topology, 'distance_vector', quiescenceWindow, clockMode, speed);
+    } catch (err) {
+      console.warn('Failed to restart simulation with distance_vector:', err);
+    }
+  };
+
+  const handleResetAllAttacks = async () => {
+    playChime('converge');
+
+    // 1. Recover all crashed nodes locally and in backend
+    const prevCrashed = [...crashedNodes];
+    setNodeTelemetry((prev) => {
+      const updated = { ...prev };
+      for (const nid of Object.keys(updated)) {
+        updated[nid] = { ...updated[nid], isCrashed: false };
+      }
+      return updated;
+    });
+
+    for (const nid of prevCrashed) {
+      RouteLabApi.injectEvent('node_recover', { node_id: nid });
+    }
+
+    // 2. Restore all links and reset costs to baseline locally and in backend
+    const baseTopo = RouteLabApi.getFallbackTopology(currentTopologyName);
+    const cleanLinks = baseTopo.links.map((lnk) => ({ ...lnk, is_up: true }));
+
+    setTopology((prev) => ({
+      ...prev,
+      links: cleanLinks,
+    }));
+
+    for (const lnk of cleanLinks) {
+      RouteLabApi.injectEvent('link_up', { u: lnk.source, v: lnk.target, cost: lnk.cost });
+      RouteLabApi.injectEvent('link_cost', { u: lnk.source, v: lnk.target, cost: lnk.cost });
+    }
+
+    // 3. Revert protocol if in attack/defense mode
+    const needsProtoReset = currentProtocol === 'poisoning_attack' || currentProtocol === 'secure_dv';
+    const targetProto: ProtocolType = needsProtoReset ? 'distance_vector' : currentProtocol;
+    if (needsProtoReset) {
+      setCurrentProtocol(targetProto);
+    }
+    setIsConverged(false);
+
+    setEvents((evs) => [
+      ...evs,
+      {
+        seq: evs.length + 1,
+        ts: simTime,
+        type: 'all_attacks_and_failures_cleared',
+        src: 'SecurityAdmin',
+        data: {
+          restored_links: severedLinks.length,
+          recovered_nodes: prevCrashed.length,
+          protocol: targetProto,
+        },
+      },
+    ]);
+
+    // 4. Only re-start simulation if protocol changed from poisoning/secure to standard
+    if (needsProtoReset) {
+      try {
+        const freshTopo: TopologyData = {
+          name: baseTopo.name,
+          nodes: topology.nodes,
+          links: cleanLinks,
+        };
+        await RouteLabApi.startSimulation(freshTopo, targetProto, quiescenceWindow, clockMode, speed);
+      } catch (err) {
+        console.warn('Failed to reset simulation session:', err);
+      }
+    }
+  };
+
   const scenarioFileMap: Record<string, string> = {
     'course-6-node-dv-vs-ls': '6_node_dv_vs_ls.json',
     'course-8-node-failover': '8_node_bottleneck.json',
@@ -787,11 +1021,66 @@ export const App: React.FC = () => {
         onOpenLogs={() => setIsLogsOpen(true)}
         onOpenExport={() => setIsExportOpen(true)}
         onOpenExplain={() => setIsExplainOpen(true)}
+        hasActiveAttacks={hasActiveAttacks}
         onOpenSettings={() => setIsSettingsOpen(true)}
       />
 
       {/* 2. Main Drafting Table Canvas */}
       <main style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+        {/* Floating Active Perturbation Alert Banner with 1-Click Clear */}
+        {hasActiveAttacks && (
+          <div
+            style={{
+              position: 'absolute',
+              top: '1rem',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              zIndex: 35,
+              background: 'oklch(from var(--accent-crimson) l c h / 0.92)',
+              color: '#FFFFFF',
+              padding: '0.4rem 1rem',
+              borderRadius: '24px',
+              boxShadow: 'var(--shadow-lg)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.75rem',
+              fontSize: '0.76rem',
+              fontFamily: 'var(--font-heading)',
+              backdropFilter: 'blur(8px)',
+              border: '1px solid var(--border-brass)',
+            }}
+          >
+            <AlertTriangle size={15} color="#FFD166" />
+            <span>
+              Active Perturbations:{' '}
+              {severedLinks.length > 0 && `${severedLinks.length} Link(s) Down · `}
+              {crashedNodes.length > 0 && `${crashedNodes.length} Router(s) Crashed · `}
+              {currentProtocol === 'poisoning_attack' && 'Poison Attack Active · '}
+              {currentProtocol === 'secure_dv' && 'Secure DV Defense Active · '}
+              {hasMutatedCosts && 'Metrics Modified'}
+            </span>
+            <button
+              onClick={handleResetAllAttacks}
+              style={{
+                background: '#FFFFFF',
+                color: 'var(--accent-crimson)',
+                border: 'none',
+                borderRadius: '14px',
+                padding: '0.2rem 0.65rem',
+                fontWeight: 800,
+                cursor: 'pointer',
+                fontSize: '0.72rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.3rem',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+              }}
+              title="1-Click Clear all active attacks, restore severed links, and recover routers"
+            >
+              <RotateCcw size={12} /> Clear Attacks & Restore
+            </button>
+          </div>
+        )}
         <TopologyCanvas
           topology={topology}
           selectedNode={selectedNode}
@@ -832,7 +1121,7 @@ export const App: React.FC = () => {
         {/* 5. Bottom Timeline Scrubber with historical scrubbing */}
         <TimelineScrubber
           currentTime={simTime}
-          maxTime={15.0}
+          maxTime={Math.max(15.0, Math.ceil(simTime / 5) * 5 + 5)}
           isRunning={isRunning}
           onTogglePlay={handleTogglePlay}
           onSeek={handleSeek}
@@ -851,11 +1140,21 @@ export const App: React.FC = () => {
         isOpen={isAttacksOpen}
         onClose={() => setIsAttacksOpen(false)}
         topology={topology}
+        crashedNodes={crashedNodes}
+        severedLinks={severedLinks}
+        hasMutatedCosts={hasMutatedCosts}
+        currentProtocol={currentProtocol}
         onMutateLinkState={(u, v, up) => handleMutateLink(u, v, up, 1)}
+        onRestoreAllLinks={handleRestoreAllLinks}
         onMutateLinkCost={(u, v, cost) => handleMutateLink(u, v, true, cost)}
+        onResetLinkCosts={handleResetLinkCosts}
         onInjectPoisonAttack={handleInjectPoisonAttack}
+        onClearPoisonAttack={handleClearPoisonAttack}
         onActivateMitigation={handleActivateMitigation}
         onCrashNode={handleCrashNode}
+        onRecoverNode={handleRecoverNode}
+        onRecoverAllNodes={handleRecoverAllNodes}
+        onResetAllAttacks={handleResetAllAttacks}
       />
 
       <ScenarioBuilderModal
