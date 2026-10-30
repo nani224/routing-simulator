@@ -5,6 +5,7 @@ import { X, Power, ShieldCheck, Database, ListTree, Activity } from 'lucide-reac
 interface NodeInspectorDrawerProps {
   nodeId: string | null;
   onClose: () => void;
+  onSelectNode?: (nodeId: string) => void;
   topology: TopologyData;
   routes: RouteEntry[];
   protocol: string;
@@ -19,6 +20,7 @@ interface NodeInspectorDrawerProps {
 export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
   nodeId,
   onClose,
+  onSelectNode,
   topology,
   routes,
   protocol,
@@ -86,8 +88,27 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
             {nodeId}
           </div>
           <div>
-            <div style={{ fontWeight: 700, fontSize: '0.92rem', fontFamily: 'var(--font-heading)' }}>
-              Router {nodeId}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              <select
+                className="select-brass"
+                value={nodeId}
+                onChange={(e) => onSelectNode && onSelectNode(e.target.value)}
+                style={{
+                  fontSize: '0.85rem',
+                  fontWeight: 700,
+                  fontFamily: 'var(--font-heading)',
+                  padding: '0.1rem 0.4rem',
+                  height: '24px',
+                  background: 'var(--surface-card)',
+                  color: 'var(--text-ink)',
+                }}
+              >
+                {Object.keys(topology.nodes).map((id) => (
+                  <option key={id} value={id}>
+                    Router {id}
+                  </option>
+                ))}
+              </select>
             </div>
             <div style={{ fontSize: '0.68rem', fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>
               {nodeData?.as_number ? `AS${nodeData.as_number} · ` : ''}
@@ -100,6 +121,7 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
           className="btn-brass"
           style={{ width: '28px', height: '28px', padding: 0 }}
           onClick={onClose}
+          title="Close Inspector"
         >
           <X size={14} />
         </button>

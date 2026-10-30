@@ -1,4 +1,4 @@
-import type { TopologyData, ProtocolType, SimEventItem, ComparisonMetrics } from '../types';
+import type { TopologyData, TopologyLink, ProtocolType, SimEventItem, ComparisonMetrics } from '../types';
 
 const API_BASE = 'http://localhost:8000';
 const WS_BASE = 'ws://localhost:8000/ws/simulation';
@@ -24,7 +24,32 @@ export class RouteLabApi {
       if (!res.ok) throw new Error(`API error: ${res.statusText}`);
       const data = await res.json();
       if (data && data.nodes && data.links) {
-        return data;
+        const nodesDict: Record<string, { x: number; y: number; as_number?: number }> = {};
+        if (Array.isArray(data.nodes)) {
+          for (const n of data.nodes) {
+            nodesDict[n.id] = { x: n.x, y: n.y, as_number: n.as_number };
+          }
+        } else {
+          Object.assign(nodesDict, data.nodes);
+        }
+
+        const normalizedLinks: TopologyLink[] = data.links.map((l: any) => ({
+          source: l.source,
+          target: l.target,
+          cost: l.cost ?? 1,
+          latency_ms: l.latency_ms ?? 10,
+          jitter_ms: l.jitter_ms ?? 0,
+          loss_rate: l.loss_rate ?? 0,
+          bandwidth_bps: l.bandwidth_bps ?? 10000000,
+          is_up: l.is_up ?? true,
+        }));
+
+        return {
+          name: data.name,
+          description: data.description,
+          nodes: nodesDict,
+          links: normalizedLinks,
+        };
       }
       return this.getFallbackTopology(name);
     } catch {
@@ -43,7 +68,24 @@ export class RouteLabApi {
         body: JSON.stringify({ kind: generator, ...params }),
       });
       if (!res.ok) throw new Error(`API error: ${res.statusText}`);
-      return await res.json();
+      const data = await res.json();
+      if (data && data.nodes && data.links) {
+        const nodesDict: Record<string, { x: number; y: number; as_number?: number }> = {};
+        if (Array.isArray(data.nodes)) {
+          for (const n of data.nodes) {
+            nodesDict[n.id] = { x: n.x, y: n.y, as_number: n.as_number };
+          }
+        } else {
+          Object.assign(nodesDict, data.nodes);
+        }
+        return {
+          name: data.name || 'Generated',
+          description: data.description,
+          nodes: nodesDict,
+          links: data.links,
+        };
+      }
+      return this.getFallbackTopology('course-6-node');
     } catch {
       return this.getFallbackTopology('course-6-node');
     }

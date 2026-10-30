@@ -388,8 +388,31 @@ class SimulationEngine:
             # Check convergence
             self.check_convergence()
 
-            # Batch frame delta
-            await self.clock.sleep(0.02)  # ~50 FPS
+            # Batch frame delta for WebSocket live telemetry
+            if self._delta_listeners:
+                nodes_snapshot = {
+                    nid: {
+                        "packets_sent": n.packets_sent,
+                        "packets_received": n.packets_received,
+                        "flaps_count": n.flaps_count,
+                        "status": n.status.value,
+                        "routes": [
+                            {"destination": r.destination, "next_hop": r.next_hop, "cost": r.cost}
+                            for r in n.get_table()
+                        ],
+                    }
+                    for nid, n in self.nodes.items()
+                }
+                self._broadcast_delta(
+                    {
+                        "type": "frame",
+                        "time": now,
+                        "converged": self._is_converged,
+                        "nodes": nodes_snapshot,
+                    }
+                )
+
+            await self.clock.sleep(0.05)  # 20 FPS
 
     def _execute_scheduled_event(self, ev: ScheduledSimulationEvent) -> None:
         if ev.action == "link_down":

@@ -38,6 +38,8 @@ interface InstrumentBarProps {
   onToggleTheme: () => void;
   isPhysicsActive: boolean;
   onTogglePhysics: () => void;
+  selectedNode?: string | null;
+  onToggleInspector?: () => void;
   onOpenCompare: () => void;
   onOpenScenarios: () => void;
   onOpenAttacks: () => void;
@@ -66,6 +68,8 @@ export const InstrumentBar: React.FC<InstrumentBarProps> = ({
   onToggleTheme,
   isPhysicsActive,
   onTogglePhysics,
+  selectedNode,
+  onToggleInspector,
   onOpenCompare,
   onOpenScenarios,
   onOpenAttacks,
@@ -275,6 +279,15 @@ export const InstrumentBar: React.FC<InstrumentBarProps> = ({
         >
           <Sparkles size={13} />
           Layout
+        </button>
+
+        <button
+          className={selectedNode ? 'btn-brass btn-brass-primary' : 'btn-brass'}
+          onClick={onToggleInspector}
+          title="Toggle Node Inspector (Routing Tables & LSDB)"
+        >
+          <Compass size={13} />
+          {selectedNode ? `Inspect (${selectedNode})` : 'Inspect'}
         </button>
 
         <button className="btn-brass" onClick={onOpenCompare} title="Side-by-Side Algorithm Comparison">

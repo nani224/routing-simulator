@@ -161,7 +161,7 @@ class SimulationSessionManager:
         protocol_config: dict[str, Any] | None = None,
         node_protocols: dict[str, str] | None = None,
         quiescence_window_s: float = 0.3,
-        clock_mode: str = "virtual",
+        clock_mode: str = "realtime",
         clock_speed: float = 1.0,
         seed: int = 42,
     ) -> dict[str, Any]:

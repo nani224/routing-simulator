@@ -55,7 +55,7 @@ class StartSimulationRequest(BaseModel):
     protocol_config: dict[str, Any] = Field(default_factory=dict)
     node_protocols: dict[str, str] = Field(default_factory=dict)
     quiescence_window_s: float = 0.3
-    clock_mode: str = Field(default="virtual", pattern="^(realtime|virtual)$")
+    clock_mode: str = Field(default="realtime", pattern="^(realtime|virtual)$")
     clock_speed: float = 1.0
     seed: int = 42
 

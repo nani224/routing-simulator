@@ -78,7 +78,7 @@ export const App: React.FC = () => {
   // Settings
   const [quiescenceWindow, setQuiescenceWindow] = useState<number>(0.5);
   const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
-  const [clockMode, setClockMode] = useState<'virtual' | 'realtime'>('virtual');
+  const [clockMode, setClockMode] = useState<'virtual' | 'realtime'>('realtime');
   const [wsUrl, setWsUrl] = useState<string>('ws://localhost:8000/ws/simulation');
 
   // Convergence record
@@ -705,6 +705,15 @@ export const App: React.FC = () => {
         onToggleTheme={() => setTheme((t) => (t === 'light' ? 'dark' : 'light'))}
         isPhysicsActive={isPhysicsActive}
         onTogglePhysics={() => setIsPhysicsActive((p) => !p)}
+        selectedNode={selectedNode}
+        onToggleInspector={() => {
+          if (selectedNode) {
+            setSelectedNode(null);
+          } else {
+            const firstNode = Object.keys(topology.nodes)[0] || 'R1';
+            setSelectedNode(firstNode);
+          }
+        }}
         onOpenCompare={() => setIsCompareOpen(true)}
         onOpenScenarios={() => setIsScenariosOpen(true)}
         onOpenAttacks={() => setIsAttacksOpen(true)}
@@ -743,6 +752,7 @@ export const App: React.FC = () => {
         <NodeInspectorDrawer
           nodeId={selectedNode}
           onClose={() => setSelectedNode(null)}
+          onSelectNode={setSelectedNode}
           topology={topology}
           routes={selectedNode ? allRoutes[selectedNode] || [] : []}
           protocol={currentProtocol}

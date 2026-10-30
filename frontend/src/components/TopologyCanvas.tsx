@@ -33,11 +33,11 @@ export const TopologyCanvas: React.FC<TopologyCanvasProps> = ({
   const [isPanning, setIsPanning] = useState<boolean>(false);
   const [panStart, setPanStart] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
-  // Interactive node dragging
   const [draggedNode, setDraggedNode] = useState<string | null>(null);
   const [nodePositions, setNodePositions] = useState<Record<string, { x: number; y: number }>>({});
   const [hoveredNode, setHoveredNode] = useState<string | null>(null);
   const [hoveredLink, setHoveredLink] = useState<{ u: string; v: string } | null>(null);
+  const clickRef = useRef<{ clientX: number; clientY: number; node: string | null } | null>(null);
 
   // Sync node positions from topology prop
   useEffect(() => {
@@ -452,12 +452,12 @@ export const TopologyCanvas: React.FC<TopologyCanvasProps> = ({
     return { x, y };
   };
 
-  // Find node under cursor
+  // Find node under cursor with generous hit radius
   const findNodeAt = (simX: number, simY: number): string | null => {
     for (const [id, coord] of Object.entries(nodePositions)) {
       const dx = simX - coord.x;
       const dy = simY - coord.y;
-      if (Math.sqrt(dx * dx + dy * dy) <= 24) {
+      if (Math.sqrt(dx * dx + dy * dy) <= 32) {
         return id;
       }
     }
@@ -482,7 +482,7 @@ export const TopologyCanvas: React.FC<TopologyCanvasProps> = ({
       const projY = p1.y + t * dy;
       const dist = Math.sqrt((simX - projX) ** 2 + (simY - projY) ** 2);
 
-      if (dist <= 12) {
+      if (dist <= 14) {
         return { u: link.source, v: link.target };
       }
     }
@@ -492,6 +492,8 @@ export const TopologyCanvas: React.FC<TopologyCanvasProps> = ({
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const { x, y } = getSimCoords(e.clientX, e.clientY);
     const clickedNode = findNodeAt(x, y);
+
+    clickRef.current = { clientX: e.clientX, clientY: e.clientY, node: clickedNode };
 
     if (clickedNode) {
       setDraggedNode(clickedNode);
@@ -509,10 +511,9 @@ export const TopologyCanvas: React.FC<TopologyCanvasProps> = ({
           onMutateLink(lnk.source, lnk.target, !lnk.is_up, lnk.cost);
         }
       } else {
-        // Background click: pan canvas
+        // Background click: pan canvas (do not deselect immediately on mousedown)
         setIsPanning(true);
         setPanStart({ x: e.clientX - offset.x, y: e.clientY - offset.y });
-        onSelectNode(null);
       }
     }
   };
@@ -547,9 +548,32 @@ export const TopologyCanvas: React.FC<TopologyCanvasProps> = ({
     }
   };
 
-  const handleMouseUp = () => {
+  const handleMouseUp = (e: React.MouseEvent<HTMLCanvasElement>) => {
     setIsPanning(false);
     setDraggedNode(null);
+
+    // If mouse didn't drag (< 6px), treat as clean click
+    if (clickRef.current) {
+      const dist = Math.hypot(
+        e.clientX - clickRef.current.clientX,
+        e.clientY - clickRef.current.clientY
+      );
+      if (dist < 6) {
+        if (clickRef.current.node) {
+          onSelectNode(clickRef.current.node);
+        } else {
+          const { x, y } = getSimCoords(e.clientX, e.clientY);
+          const node = findNodeAt(x, y);
+          if (node) {
+            onSelectNode(node);
+          } else if (!findLinkAt(x, y)) {
+            // Only deselect when explicitly clicking empty canvas
+            onSelectNode(null);
+          }
+        }
+      }
+      clickRef.current = null;
+    }
   };
 
   const handleWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
