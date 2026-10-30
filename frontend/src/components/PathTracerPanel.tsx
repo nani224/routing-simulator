@@ -86,10 +86,18 @@ export const PathTracerPanel: React.FC<PathTracerPanelProps> = ({
     return `Cumulative Metric Cost: ${totalCost}`;
   };
 
-  // Notify canvas of active path and loop status
+  // Notify canvas of active path and loop status ONLY when path value or loop state actually changes
+  const pathKey = path.join('->');
+  const prevPathKeyRef = React.useRef<string>('');
+  const prevLoopRef = React.useRef<boolean>(false);
+
   React.useEffect(() => {
-    onPathChanged(path, hasLoop);
-  }, [path, hasLoop, onPathChanged]);
+    if (prevPathKeyRef.current !== pathKey || prevLoopRef.current !== hasLoop) {
+      prevPathKeyRef.current = pathKey;
+      prevLoopRef.current = hasLoop;
+      onPathChanged(path, hasLoop);
+    }
+  }, [pathKey, hasLoop, onPathChanged]);
 
   return (
     <div

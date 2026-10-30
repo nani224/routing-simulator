@@ -129,8 +129,9 @@ export const App: React.FC = () => {
   );
 
   // Fallback client-side routing calculation when backend is unreachable
-  const recalculateClientRoutes = useCallback(() => {
-    const nodeIds = Object.keys(topology.nodes);
+  const recalculateClientRoutes = useCallback((targetTopo?: TopologyData) => {
+    const activeTopo = targetTopo || topology;
+    const nodeIds = Object.keys(activeTopo.nodes);
     const newRoutes: Record<string, RouteEntry[]> = {};
 
     setNodeTelemetry((prev) => {
@@ -153,7 +154,7 @@ export const App: React.FC = () => {
       }
 
       for (let iter = 0; iter < nodeIds.length - 1; iter++) {
-        for (const link of topology.links) {
+        for (const link of activeTopo.links) {
           if (!link.is_up) continue;
           const u = link.source;
           const v = link.target;
@@ -178,13 +179,21 @@ export const App: React.FC = () => {
           protocol: currentProtocol,
           as_path:
             currentProtocol === 'bgp_lite'
-              ? [topology.nodes[src]?.as_number || 100, topology.nodes[dst]?.as_number || 200]
+              ? [activeTopo.nodes[src]?.as_number || 100, activeTopo.nodes[dst]?.as_number || 200]
               : undefined,
         }));
     }
 
     setAllRoutes(newRoutes);
   }, [topology, currentProtocol]);
+
+  // Stable ref for simTime to avoid tearing and effect re-triggers
+  const simTimeRef = useRef<number>(0.0);
+  useEffect(() => {
+    simTimeRef.current = simTime;
+  }, [simTime]);
+
+  const lastWsFrameTime = useRef<number>(0);
 
   // Initialize or restart backend simulation when topology or protocol switches
   useEffect(() => {
@@ -200,23 +209,29 @@ export const App: React.FC = () => {
     RouteLabApi.startSimulation(topo, currentProtocol, quiescenceWindow, clockMode, speed).then(
       (res) => {
         if (res.status === 'offline') {
-          recalculateClientRoutes();
+          recalculateClientRoutes(topo);
         }
       }
     );
-  }, [currentTopologyName, currentProtocol, quiescenceWindow, clockMode, speed, recalculateClientRoutes]);
+  }, [currentTopologyName, currentProtocol, quiescenceWindow, clockMode, speed]);
 
   // Hook directly to backend WebSocket live event stream
   useEffect(() => {
-    const handleDelta = (delta: any) => {
-      if (!delta) return;
+    const handleDeltaBatch = (batch: any[]) => {
+      let latestFrame: any = null;
+      const newPackets: PacketCourier[] = [];
+      const telemetryDelta: Record<string, { txDelta: number; rxDelta: number }> = {};
+      let convergedUpdate: { converged: boolean; duration: number; record?: any } | null = null;
+      const linkUpdates: { u: string; v: string; is_up: boolean }[] = [];
+      const nodeStateUpdates: { node_id: string; status: string }[] = [];
 
-      // Event-driven packet visualizer consuming real PACKET_SENT and PACKET_DELIVERED
-      if (delta.type === 'packet') {
-        if (delta.event === 'PACKET_SENT' || delta.event === 'PACKET_FORWARDED') {
-          setPackets((prev) => [
-            ...prev.filter((p) => p.progress < 1.0).slice(-20),
-            {
+      for (const delta of batch) {
+        if (!delta) continue;
+        if (delta.type === 'frame') {
+          latestFrame = delta;
+        } else if (delta.type === 'packet') {
+          if (delta.event === 'PACKET_SENT' || delta.event === 'PACKET_FORWARDED') {
+            newPackets.push({
               id: `${delta.src}->${delta.dst}-${Date.now()}-${Math.random()}`,
               src: delta.src,
               dst: delta.dst,
@@ -224,81 +239,93 @@ export const App: React.FC = () => {
               speed: 1.5,
               protocol: delta.proto || currentProtocol,
               payloadType: 'control',
-            },
-          ]);
-          setNodeTelemetry((prev) => {
-            const cur = prev[delta.src] || { tx: 0, rx: 0, flaps: 0, isCrashed: false };
-            return { ...prev, [delta.src]: { ...cur, tx: cur.tx + 1 } };
-          });
-        } else if (delta.event === 'PACKET_DELIVERED') {
-          setNodeTelemetry((prev) => {
-            const cur = prev[delta.dst] || { tx: 0, rx: 0, flaps: 0, isCrashed: false };
-            return { ...prev, [delta.dst]: { ...cur, rx: cur.rx + 1 } };
-          });
+            });
+            const cur = telemetryDelta[delta.src] || { txDelta: 0, rxDelta: 0 };
+            cur.txDelta += 1;
+            telemetryDelta[delta.src] = cur;
+          } else if (delta.event === 'PACKET_DELIVERED') {
+            const cur = telemetryDelta[delta.dst] || { txDelta: 0, rxDelta: 0 };
+            cur.rxDelta += 1;
+            telemetryDelta[delta.dst] = cur;
+          }
+        } else if (delta.type === 'node_state') {
+          nodeStateUpdates.push({ node_id: delta.node_id, status: delta.status });
+        } else if (delta.type === 'link_state') {
+          const parts = delta.link_id.split('<->');
+          if (parts.length === 2) {
+            linkUpdates.push({ u: parts[0], v: parts[1], is_up: delta.is_up });
+          }
+        } else if (delta.type === 'convergence') {
+          convergedUpdate = {
+            converged: true,
+            duration: delta.duration_s || simTimeRef.current,
+            record: delta.record,
+          };
         }
-        return;
       }
 
-      if (delta.type === 'node_state') {
-        const isCrashed = delta.status === 'crashed';
+      // 1. Batch packet couriers update
+      if (newPackets.length > 0) {
+        setPackets((prev) => [...prev.filter((p) => p.progress < 1.0).slice(-25), ...newPackets]);
+      }
+
+      // 2. Batch node state / telemetry updates
+      if (Object.keys(telemetryDelta).length > 0 || nodeStateUpdates.length > 0) {
         setNodeTelemetry((prev) => {
-          const cur = prev[delta.node_id] || { tx: 0, rx: 0, flaps: 0, isCrashed: false };
-          return { ...prev, [delta.node_id]: { ...cur, isCrashed } };
+          const next = { ...prev };
+          for (const [nid, d] of Object.entries(telemetryDelta)) {
+            const cur = next[nid] || { tx: 0, rx: 0, flaps: 0, isCrashed: false };
+            next[nid] = { ...cur, tx: cur.tx + d.txDelta, rx: cur.rx + d.rxDelta };
+          }
+          for (const ns of nodeStateUpdates) {
+            const cur = next[ns.node_id] || { tx: 0, rx: 0, flaps: 0, isCrashed: false };
+            next[ns.node_id] = { ...cur, isCrashed: ns.status === 'crashed' };
+          }
+          return next;
         });
-        setEvents((evs) => [
-          ...evs,
-          {
-            seq: evs.length + 1,
-            ts: simTime,
-            type: isCrashed ? 'node_crash' : 'node_recover',
-            src: delta.node_id,
-            data: { status: delta.status },
-          },
-        ]);
-        return;
       }
 
-      if (delta.type === 'link_state') {
-        const parts = delta.link_id.split('<->');
-        if (parts.length === 2) {
-          const [u, v] = parts;
-          setTopology((prev) => ({
-            ...prev,
-            links: prev.links.map((lnk) =>
-              (lnk.source === u && lnk.target === v) || (lnk.source === v && lnk.target === u)
-                ? { ...lnk, is_up: delta.is_up }
-                : lnk
-            ),
-          }));
-        }
-        return;
+      // 3. Link updates
+      if (linkUpdates.length > 0) {
+        setTopology((prev) => ({
+          ...prev,
+          links: prev.links.map((lnk) => {
+            const match = linkUpdates.find(
+              (lu) =>
+                (lnk.source === lu.u && lnk.target === lu.v) ||
+                (lnk.source === lu.v && lnk.target === lu.u)
+            );
+            return match ? { ...lnk, is_up: match.is_up } : lnk;
+          }),
+        }));
       }
 
-      if (delta.type === 'convergence') {
+      // 4. Convergence update
+      if (convergedUpdate) {
         setIsConverged(true);
-        const duration = delta.duration_s || simTime;
-        setConvTime(duration);
+        setConvTime(convergedUpdate.duration);
         playChime('converge');
-        if (delta.record) {
+        if (convergedUpdate.record) {
           setConvergenceRecord({
             is_converged: true,
-            convergence_time_s: duration,
-            total_control_messages: delta.record.messages || 0,
-            total_control_bytes: delta.record.bytes || 0,
-            total_flaps: delta.record.flaps || 0,
+            convergence_time_s: convergedUpdate.duration,
+            total_control_messages: convergedUpdate.record.messages || 0,
+            total_control_bytes: convergedUpdate.record.bytes || 0,
+            total_flaps: convergedUpdate.record.flaps || 0,
           });
         }
-        return;
       }
 
-      if (delta.type === 'frame') {
-        if (typeof delta.time === 'number') setSimTime(delta.time);
-        if (typeof delta.converged === 'boolean') setIsConverged(delta.converged);
-        if (delta.nodes) {
+      // 5. Apply only single latest frame from batch
+      if (latestFrame) {
+        lastWsFrameTime.current = performance.now();
+        if (typeof latestFrame.time === 'number') setSimTime(latestFrame.time);
+        if (typeof latestFrame.converged === 'boolean') setIsConverged(latestFrame.converged);
+        if (latestFrame.nodes) {
           const nextRoutes: Record<string, RouteEntry[]> = {};
           const nextTelemetry: Record<string, { tx: number; rx: number; flaps: number; isCrashed: boolean }> = {};
 
-          for (const [nid, n] of Object.entries(delta.nodes) as [string, any][]) {
+          for (const [nid, n] of Object.entries(latestFrame.nodes) as [string, any][]) {
             nextTelemetry[nid] = {
               tx: n.packets_sent || 0,
               rx: n.packets_received || 0,
@@ -314,7 +341,7 @@ export const App: React.FC = () => {
               }));
             }
           }
-          setNodeTelemetry(nextTelemetry);
+          setNodeTelemetry((prev) => ({ ...prev, ...nextTelemetry }));
           setAllRoutes(nextRoutes);
         }
       }
@@ -349,33 +376,33 @@ export const App: React.FC = () => {
           setAllRoutes(initRoutes);
         }
       } else if (msg.type === 'delta_batch') {
-        const batch = msg.deltas || [];
-        for (const item of batch) {
-          handleDelta(item);
-        }
+        handleDeltaBatch(msg.deltas || []);
       } else {
-        handleDelta(msg);
+        handleDeltaBatch([msg]);
       }
     });
 
     return () => ws.close();
-  }, [currentProtocol, playChime, simTime]);
+  }, [currentProtocol, playChime]);
 
-  // Record historical state snapshots for scrubber replay
+  // Record historical state snapshots for scrubber replay (throttled to at most every 0.25s)
+  const lastSnapshotTimeRef = useRef<number>(0);
   useEffect(() => {
     if (isScrubbing.current) return;
+    if (Math.abs(simTime - lastSnapshotTimeRef.current) < 0.25) return;
+    lastSnapshotTimeRef.current = simTime;
     stateHistory.current.push({
       time: simTime,
       routes: JSON.parse(JSON.stringify(allRoutes)),
       telemetry: JSON.parse(JSON.stringify(nodeTelemetry)),
       links: JSON.parse(JSON.stringify(topology.links)),
     });
-    if (stateHistory.current.length > 500) {
+    if (stateHistory.current.length > 200) {
       stateHistory.current.shift();
     }
   }, [simTime, allRoutes, nodeTelemetry, topology.links]);
 
-  // Main simulation tick loop: updates packet courier positions and FPS (NO Math.random generation)
+  // Main simulation tick loop: updates packet courier positions and FPS
   useEffect(() => {
     if (!isRunning) return;
 
@@ -396,12 +423,15 @@ export const App: React.FC = () => {
         lastFpsUpdate = now;
       }
 
-      // Advance simulation clock when running locally
-      const simDelta = dt * speed;
-      setSimTime((t) => t + simDelta);
+      // Advance simulation clock when backend frames are not arriving
+      if (now - lastWsFrameTime.current > 400) {
+        const simDelta = dt * speed;
+        setSimTime((t) => Number((t + simDelta).toFixed(3)));
+      }
 
       // Advance event-driven traveling packet animations
       setPackets((prevPackets) => {
+        if (prevPackets.length === 0) return prevPackets;
         const nextPackets: PacketCourier[] = [];
 
         for (const pkt of prevPackets) {
@@ -671,6 +701,11 @@ export const App: React.FC = () => {
     }
   };
 
+  const handlePathChanged = useCallback((p: string[], loop: boolean) => {
+    setActivePath(p);
+    setLoopDetected(loop);
+  }, []);
+
   const selectedNodeTelemetry = selectedNode ? nodeTelemetry[selectedNode] : null;
 
   return (
@@ -741,10 +776,7 @@ export const App: React.FC = () => {
         <PathTracerPanel
           topology={topology}
           allRoutes={allRoutes}
-          onPathChanged={(p, loop) => {
-            setActivePath(p);
-            setLoopDetected(loop);
-          }}
+          onPathChanged={handlePathChanged}
           protocol={currentProtocol}
         />
 

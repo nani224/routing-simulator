@@ -46,7 +46,7 @@ export const TopologyCanvas: React.FC<TopologyCanvasProps> = ({
       initialPositions[id] = { ...coord };
     }
     setNodePositions(initialPositions);
-  }, [topology]);
+  }, [topology.name, topology.nodes]);
 
   // Force-directed physics step
   useEffect(() => {
