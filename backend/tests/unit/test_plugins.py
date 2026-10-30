@@ -152,3 +152,47 @@ def test_buggy_plugin_b_isolation_on_message() -> None:
     assert runner.is_faulty is True
     assert "KeyError" in (runner.fault_error or "")
     assert runner.fault_traceback is not None
+
+
+class MaliciousHangProtocol(RoutingProtocol):
+    name = "malicious_hang"
+    version = "1.0.0"
+
+    def on_start(self, _ctx: ProtocolContext) -> None:
+        pass
+
+    def on_message(self, _ctx: ProtocolContext, _src: str, _msg: dict[str, Any]) -> None:
+        import time
+
+        time.sleep(0.5)
+
+    def on_link_change(self, _ctx: ProtocolContext, _nbr: str, _cost: float, _up: bool) -> None:
+        pass
+
+    def on_timer(self, _ctx: ProtocolContext, _timer_id: str) -> None:
+        pass
+
+    def get_table(self) -> list[RouteEntry]:
+        return []
+
+
+def test_malicious_plugin_preemption_guard() -> None:
+    vclock = VirtualClock()
+    node = RouterNode("R_MAL", clock=vclock)
+    plugin = MaliciousHangProtocol()
+    node.set_protocol(plugin)
+
+    runner = node._runner
+    assert runner is not None
+    # Set short watchdog budget for test
+    runner.max_callback_ms = 40.0
+    runner.on_start()
+    assert not runner.is_faulty
+
+    # Trigger hanging on_message callback
+    runner.on_message("R_SRC", {"type": "probe"})
+
+    # Must be preempted and marked faulty with TimeoutError
+    assert runner.is_faulty is True
+    assert "TimeoutError" in (runner.fault_error or "")
+    assert runner.fault_traceback is not None

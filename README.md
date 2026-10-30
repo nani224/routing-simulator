@@ -37,14 +37,14 @@ RouteLab features a distinctive, human-crafted aesthetic inspired by antique car
 ## 🚀 Key Features
 
 1. **Topology Canvas**: Interactive pan/zoom, draggable nodes, toggleable force-directed spring physics, minimap, severed link indicators, and metric cost badges.
-2. **Live Packet Courier Animations**: Real-time particles traveling along link vectors color-coded by protocol (DV terracotta, LS verdigris, BGP cobalt, Flooding amber, Attack ruby).
-3. **Per-Node Inspector**: Slide-out drawer with routing tables, Link State Database (LSDB), BGP RIB/AS_PATH, neighbor link metrics, and crash/recover controls.
-4. **Interactive Failure & Attack Lab**: Dynamically sever/recover links, mutate link metric costs, inject forged route poisoning attacks, and activate cryptographic defense.
-5. **Timeline Scrubber & Replay**: Scrub through simulation history at 50ms resolution with color-coded event pins.
-6. **Side-by-Side Algorithm Comparison**: Run Distance Vector vs Link State vs Flooding on identical topologies and event schedules with live speedup, message, byte, and flap deltas.
-7. **Golden Quill Path Tracer**: Visual hop-by-hop route tracing with automated routing loop and blackhole alarms.
-8. **Pluggable Protocol Architecture**: Load custom `.py` protocol plugins dynamically into an isolated, exception-safe sandbox.
-9. **Scenario Builder & Presets**: 1-click launch for all mandatory course scenarios (6/8/10 node topologies, count-to-infinity flaw, poison-reverse fix, BGP peering, poisoning attack).
+2. **Event-Driven Packet Courier Animations**: Real-time particles consuming authentic simulation telemetry events (`PACKET_SENT`, `PACKET_FORWARDED`, `PACKET_DELIVERED`) streamed over WebSocket connections — zero synthetic or randomized animations.
+3. **Per-Node Inspector**: Slide-out drawer with real-time routing tables, Link State Database (LSDB), BGP RIB/AS_PATH, neighbor link metrics, and crash/recover controls with strict neighbor verification.
+4. **Interactive Failure & Attack Lab**: Dynamically sever/recover links, mutate link metric costs, inject forged route poisoning attacks, and activate cryptographic defense featuring HMAC-SHA256 signature verification.
+5. **Timeline Scrubber & Replay**: Scrub through simulation history and replay recorded routing tables, link states, and telemetry events at past timestamps.
+6. **Side-by-Side Algorithm Comparison**: Run Distance Vector vs Link State vs Flooding on identical topologies and event schedules with verified convergence guarantees (no false winners when algorithms fail to converge).
+7. **Golden Quill Path Tracer**: Protocol-specific path tracing delineating Shortest Metric Cost (DV / Link State), Policy AS-Path (BGP-Lite), and Hop-Count Discovery (Flooding), with automated routing loop and blackhole alarms.
+8. **Pluggable Protocol Architecture**: Load custom `.py` protocol plugins dynamically into an isolated sandbox equipped with watchdog thread preemption guards against infinite loops.
+9. **Scenario Builder & Presets**: 1-click launch for actual backend scenario definitions (6/8/10 node topologies, count-to-infinity flaw, poison-reverse fix, BGP peering, poisoning attack).
 10. **Virtualized Packet Log**: High-volume, filterable streaming table of every simulation event with auto-scroll.
 11. **Comprehensive Export**: Export high-res PNG map snapshots, CSV/JSON run metrics, GraphML topologies, and printable PDF evaluation reports.
 12. **Explain Mode**: 5-step guided audio-visual walkthrough explaining Bellman-Ford, count-to-infinity, Dijkstra SPF, BGP path-vectors, and cybersecurity mitigations.

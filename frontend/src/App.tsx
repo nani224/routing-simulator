@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import type {
   TopologyData,
   ProtocolType,
@@ -6,6 +6,7 @@ import type {
   PacketCourier,
   SimEventItem,
   ConvergenceRecord,
+  TopologyLink,
 } from './types';
 import { RouteLabApi } from './services/api';
 import { TopologyCanvas } from './components/TopologyCanvas';
@@ -20,6 +21,13 @@ import { VirtualizedPacketLog } from './components/VirtualizedPacketLog';
 import { ExportModal } from './components/ExportModal';
 import { ExplainModeModal } from './components/ExplainModeModal';
 import { SettingsModal } from './components/SettingsModal';
+
+interface HistoricalSnapshot {
+  time: number;
+  routes: Record<string, RouteEntry[]>;
+  telemetry: Record<string, { tx: number; rx: number; flaps: number; isCrashed: boolean }>;
+  links: TopologyLink[];
+}
 
 export const App: React.FC = () => {
   // Theme state
@@ -50,6 +58,10 @@ export const App: React.FC = () => {
   const [packets, setPackets] = useState<PacketCourier[]>([]);
   const [events, setEvents] = useState<SimEventItem[]>([]);
 
+  // Historical state replay scrubbing
+  const stateHistory = useRef<HistoricalSnapshot[]>([]);
+  const isScrubbing = useRef<boolean>(false);
+
   // Path tracer state
   const [activePath, setActivePath] = useState<string[]>([]);
   const [loopDetected, setLoopDetected] = useState<boolean>(false);
@@ -77,13 +89,6 @@ export const App: React.FC = () => {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
 
-  // Load topology on name change
-  useEffect(() => {
-    const topo = RouteLabApi.getFallbackTopology(currentTopologyName);
-    setTopology(topo);
-    handleReset();
-  }, [currentTopologyName]);
-
   // Sound synthesis utility (Web Audio API)
   const playChime = useCallback(
     (type: 'click' | 'converge' | 'attack') => {
@@ -102,8 +107,8 @@ export const App: React.FC = () => {
           osc.start();
           osc.stop(audioCtx.currentTime + 0.05);
         } else if (type === 'converge') {
-          osc.frequency.setValueAtTime(523.25, audioCtx.currentTime); // C5
-          osc.frequency.exponentialRampToValueAtTime(659.25, audioCtx.currentTime + 0.15); // E5
+          osc.frequency.setValueAtTime(523.25, audioCtx.currentTime);
+          osc.frequency.exponentialRampToValueAtTime(659.25, audioCtx.currentTime + 0.15);
           gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
           gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.4);
           osc.start();
@@ -123,12 +128,11 @@ export const App: React.FC = () => {
     [soundEnabled]
   );
 
-  // Compute realistic routing tables across all nodes for current topology & protocol
-  const recalculateRoutes = useCallback(() => {
+  // Fallback client-side routing calculation when backend is unreachable
+  const recalculateClientRoutes = useCallback(() => {
     const nodeIds = Object.keys(topology.nodes);
     const newRoutes: Record<string, RouteEntry[]> = {};
 
-    // Initialize telemetry if missing
     setNodeTelemetry((prev) => {
       const next = { ...prev };
       for (const nid of nodeIds) {
@@ -139,7 +143,6 @@ export const App: React.FC = () => {
       return next;
     });
 
-    // Dijkstra / Bellman-Ford shortest paths on active topology
     for (const src of nodeIds) {
       const dist: Record<string, number> = {};
       const nextHop: Record<string, string | null> = {};
@@ -149,7 +152,6 @@ export const App: React.FC = () => {
         nextHop[nid] = null;
       }
 
-      // Bellman-Ford relaxation over active, non-crashed links
       for (let iter = 0; iter < nodeIds.length - 1; iter++) {
         for (const link of topology.links) {
           if (!link.is_up) continue;
@@ -184,12 +186,196 @@ export const App: React.FC = () => {
     setAllRoutes(newRoutes);
   }, [topology, currentProtocol]);
 
-  // Initial routing calculation on topology or protocol switch
+  // Initialize or restart backend simulation when topology or protocol switches
   useEffect(() => {
-    recalculateRoutes();
-  }, [recalculateRoutes]);
+    const topo = RouteLabApi.getFallbackTopology(currentTopologyName);
+    setTopology(topo);
+    setSimTime(0.0);
+    setIsConverged(false);
+    setConvTime(0.0);
+    setPackets([]);
+    stateHistory.current = [];
 
-  // Main simulation tick loop (60 FPS)
+    // Boot real simulation engine on backend
+    RouteLabApi.startSimulation(topo, currentProtocol, quiescenceWindow, clockMode, speed).then(
+      (res) => {
+        if (res.status === 'offline') {
+          recalculateClientRoutes();
+        }
+      }
+    );
+  }, [currentTopologyName, currentProtocol, quiescenceWindow, clockMode, speed, recalculateClientRoutes]);
+
+  // Hook directly to backend WebSocket live event stream
+  useEffect(() => {
+    const handleDelta = (delta: any) => {
+      if (!delta) return;
+
+      // Event-driven packet visualizer consuming real PACKET_SENT and PACKET_DELIVERED
+      if (delta.type === 'packet') {
+        if (delta.event === 'PACKET_SENT' || delta.event === 'PACKET_FORWARDED') {
+          setPackets((prev) => [
+            ...prev.filter((p) => p.progress < 1.0).slice(-20),
+            {
+              id: `${delta.src}->${delta.dst}-${Date.now()}-${Math.random()}`,
+              src: delta.src,
+              dst: delta.dst,
+              progress: 0.0,
+              speed: 1.5,
+              protocol: delta.proto || currentProtocol,
+              payloadType: 'control',
+            },
+          ]);
+          setNodeTelemetry((prev) => {
+            const cur = prev[delta.src] || { tx: 0, rx: 0, flaps: 0, isCrashed: false };
+            return { ...prev, [delta.src]: { ...cur, tx: cur.tx + 1 } };
+          });
+        } else if (delta.event === 'PACKET_DELIVERED') {
+          setNodeTelemetry((prev) => {
+            const cur = prev[delta.dst] || { tx: 0, rx: 0, flaps: 0, isCrashed: false };
+            return { ...prev, [delta.dst]: { ...cur, rx: cur.rx + 1 } };
+          });
+        }
+        return;
+      }
+
+      if (delta.type === 'node_state') {
+        const isCrashed = delta.status === 'crashed';
+        setNodeTelemetry((prev) => {
+          const cur = prev[delta.node_id] || { tx: 0, rx: 0, flaps: 0, isCrashed: false };
+          return { ...prev, [delta.node_id]: { ...cur, isCrashed } };
+        });
+        setEvents((evs) => [
+          ...evs,
+          {
+            seq: evs.length + 1,
+            ts: simTime,
+            type: isCrashed ? 'node_crash' : 'node_recover',
+            src: delta.node_id,
+            data: { status: delta.status },
+          },
+        ]);
+        return;
+      }
+
+      if (delta.type === 'link_state') {
+        const parts = delta.link_id.split('<->');
+        if (parts.length === 2) {
+          const [u, v] = parts;
+          setTopology((prev) => ({
+            ...prev,
+            links: prev.links.map((lnk) =>
+              (lnk.source === u && lnk.target === v) || (lnk.source === v && lnk.target === u)
+                ? { ...lnk, is_up: delta.is_up }
+                : lnk
+            ),
+          }));
+        }
+        return;
+      }
+
+      if (delta.type === 'convergence') {
+        setIsConverged(true);
+        const duration = delta.duration_s || simTime;
+        setConvTime(duration);
+        playChime('converge');
+        if (delta.record) {
+          setConvergenceRecord({
+            is_converged: true,
+            convergence_time_s: duration,
+            total_control_messages: delta.record.messages || 0,
+            total_control_bytes: delta.record.bytes || 0,
+            total_flaps: delta.record.flaps || 0,
+          });
+        }
+        return;
+      }
+
+      if (delta.type === 'frame') {
+        if (typeof delta.time === 'number') setSimTime(delta.time);
+        if (typeof delta.converged === 'boolean') setIsConverged(delta.converged);
+        if (delta.nodes) {
+          const nextRoutes: Record<string, RouteEntry[]> = {};
+          const nextTelemetry: Record<string, { tx: number; rx: number; flaps: number; isCrashed: boolean }> = {};
+
+          for (const [nid, n] of Object.entries(delta.nodes) as [string, any][]) {
+            nextTelemetry[nid] = {
+              tx: n.packets_sent || 0,
+              rx: n.packets_received || 0,
+              flaps: n.flaps_count || 0,
+              isCrashed: n.status === 'crashed',
+            };
+            if (n.routes && Array.isArray(n.routes)) {
+              nextRoutes[nid] = n.routes.map((r: any) => ({
+                destination: r.destination,
+                next_hop: r.next_hop,
+                metric: r.cost,
+                protocol: currentProtocol,
+              }));
+            }
+          }
+          setNodeTelemetry(nextTelemetry);
+          setAllRoutes(nextRoutes);
+        }
+      }
+    };
+
+    const ws = RouteLabApi.connectWebSocket((msg: any) => {
+      if (msg.type === 'init' || msg.type === 'state') {
+        const state = msg.state;
+        if (!state) return;
+        if (typeof state.current_time === 'number') setSimTime(state.current_time);
+        if (typeof state.is_converged === 'boolean') setIsConverged(state.is_converged);
+        if (state.nodes) {
+          const initRoutes: Record<string, RouteEntry[]> = {};
+          const initTelemetry: Record<string, { tx: number; rx: number; flaps: number; isCrashed: boolean }> = {};
+          for (const [nid, n] of Object.entries(state.nodes) as [string, any][]) {
+            initTelemetry[nid] = {
+              tx: n.packets_sent || 0,
+              rx: n.packets_received || 0,
+              flaps: n.flaps || 0,
+              isCrashed: n.status === 'crashed',
+            };
+            if (n.routing_table && Array.isArray(n.routing_table)) {
+              initRoutes[nid] = n.routing_table.map((r: any) => ({
+                destination: r.dst,
+                next_hop: r.next_hop,
+                metric: r.cost,
+                protocol: currentProtocol,
+              }));
+            }
+          }
+          setNodeTelemetry(initTelemetry);
+          setAllRoutes(initRoutes);
+        }
+      } else if (msg.type === 'delta_batch') {
+        const batch = msg.deltas || [];
+        for (const item of batch) {
+          handleDelta(item);
+        }
+      } else {
+        handleDelta(msg);
+      }
+    });
+
+    return () => ws.close();
+  }, [currentProtocol, playChime, simTime]);
+
+  // Record historical state snapshots for scrubber replay
+  useEffect(() => {
+    if (isScrubbing.current) return;
+    stateHistory.current.push({
+      time: simTime,
+      routes: JSON.parse(JSON.stringify(allRoutes)),
+      telemetry: JSON.parse(JSON.stringify(nodeTelemetry)),
+      links: JSON.parse(JSON.stringify(topology.links)),
+    });
+    if (stateHistory.current.length > 500) {
+      stateHistory.current.shift();
+    }
+  }, [simTime, allRoutes, nodeTelemetry, topology.links]);
+
+  // Main simulation tick loop: updates packet courier positions and FPS (NO Math.random generation)
   useEffect(() => {
     if (!isRunning) return;
 
@@ -210,109 +396,48 @@ export const App: React.FC = () => {
         lastFpsUpdate = now;
       }
 
-      // Advance simulation clock
+      // Advance simulation clock when running locally
       const simDelta = dt * speed;
       setSimTime((t) => t + simDelta);
 
-      // Advance and spawn traveling packet courier animations
+      // Advance event-driven traveling packet animations
       setPackets((prevPackets) => {
         const nextPackets: PacketCourier[] = [];
 
-        // Move existing packets along link vectors
         for (const pkt of prevPackets) {
           const nextProg = pkt.progress + pkt.speed * dt * speed;
           if (nextProg < 1.0) {
             nextPackets.push({ ...pkt, progress: nextProg });
-          } else {
-            // Packet delivered!
-            setNodeTelemetry((tel) => {
-              const cur = tel[pkt.dst] || { tx: 0, rx: 0, flaps: 0, isCrashed: false };
-              return { ...tel, [pkt.dst]: { ...cur, rx: cur.rx + 1 } };
-            });
           }
         }
-
-        // Spawn periodic routing vector exchange packets along active links
-        if (Math.random() < 0.25 * speed) {
-          const activeLinks = topology.links.filter((l) => l.is_up);
-          if (activeLinks.length > 0) {
-            const chosen = activeLinks[Math.floor(Math.random() * activeLinks.length)];
-            const isForward = Math.random() < 0.5;
-            const src = isForward ? chosen.source : chosen.target;
-            const dst = isForward ? chosen.target : chosen.source;
-
-            nextPackets.push({
-              id: `${src}->${dst}-${Math.random()}`,
-              src,
-              dst,
-              progress: 0.0,
-              speed: 1.2 / Math.max(0.1, chosen.latency_ms / 15.0),
-              protocol: currentProtocol,
-              payloadType: currentProtocol.includes('ls') ? 'LSA' : 'VECTOR',
-            });
-
-            setNodeTelemetry((tel) => {
-              const cur = tel[src] || { tx: 0, rx: 0, flaps: 0, isCrashed: false };
-              return { ...tel, [src]: { ...cur, tx: cur.tx + 1 } };
-            });
-          }
-        }
-
         return nextPackets;
       });
-
-      // Convergence evaluation
-      if (!isConverged && simTime > 0.4) {
-        setIsConverged(true);
-        setConvTime(simTime);
-        playChime('converge');
-
-        const rec: ConvergenceRecord = {
-          is_converged: true,
-          convergence_time_s: simTime,
-          total_control_messages: Object.values(nodeTelemetry).reduce((sum, n) => sum + n.tx, 120),
-          total_control_bytes: Object.values(nodeTelemetry).reduce((sum, n) => sum + n.tx * 128, 15360),
-          total_flaps: Object.values(nodeTelemetry).reduce((sum, n) => sum + n.flaps, 4),
-        };
-        setConvergenceRecord(rec);
-
-        setEvents((evs) => [
-          ...evs,
-          {
-            seq: evs.length + 1,
-            ts: simTime,
-            type: 'convergence',
-            src: 'engine',
-            data: { time_s: simTime, messages: rec.total_control_messages },
-          },
-        ]);
-      }
 
       animId = requestAnimationFrame(tick);
     };
 
     animId = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(animId);
-  }, [
-    isRunning,
-    speed,
-    simTime,
-    isConverged,
-    topology.links,
-    currentProtocol,
-    nodeTelemetry,
-    playChime,
-  ]);
+  }, [isRunning, speed]);
 
   // Actions
   const handleTogglePlay = () => {
     playChime('click');
-    setIsRunning((r) => !r);
+    setIsRunning((r) => {
+      const nextState = !r;
+      if (nextState) {
+        RouteLabApi.resumeSimulation();
+      } else {
+        RouteLabApi.pauseSimulation();
+      }
+      return nextState;
+    });
   };
 
   const handleStep = () => {
     playChime('click');
     setSimTime((t) => t + 0.1);
+    RouteLabApi.stepSimulation(0.1);
   };
 
   const handleReset = () => {
@@ -322,7 +447,35 @@ export const App: React.FC = () => {
     setConvTime(0.0);
     setPackets([]);
     setNodeTelemetry({});
-    recalculateRoutes();
+    stateHistory.current = [];
+    isScrubbing.current = false;
+    RouteLabApi.startSimulation(topology, currentProtocol, quiescenceWindow, clockMode, speed);
+  };
+
+  // Historical state replay scrubbing
+  const handleSeek = (targetTime: number) => {
+    isScrubbing.current = true;
+    setSimTime(targetTime);
+
+    if (stateHistory.current.length > 0) {
+      let closest = stateHistory.current[0];
+      for (const snap of stateHistory.current) {
+        if (snap.time <= targetTime) {
+          closest = snap;
+        } else {
+          break;
+        }
+      }
+      if (closest) {
+        setAllRoutes(closest.routes);
+        setNodeTelemetry(closest.telemetry);
+        setTopology((prev) => ({ ...prev, links: closest.links }));
+      }
+    }
+
+    setTimeout(() => {
+      isScrubbing.current = false;
+    }, 200);
   };
 
   const handleMutateLink = (u: string, v: string, up: boolean, cost: number) => {
@@ -348,7 +501,8 @@ export const App: React.FC = () => {
       },
     ]);
 
-    setTimeout(recalculateRoutes, 100);
+    // Send real event injection to backend
+    RouteLabApi.injectEvent(up ? 'link_up' : 'link_down', { u, v, cost });
   };
 
   const handleCrashNode = (nodeId: string) => {
@@ -358,7 +512,6 @@ export const App: React.FC = () => {
       return { ...prev, [nodeId]: { ...cur, isCrashed: true } };
     });
 
-    // Mark connected links down
     setTopology((prev) => ({
       ...prev,
       links: prev.links.map((lnk) =>
@@ -378,7 +531,7 @@ export const App: React.FC = () => {
       },
     ]);
 
-    setTimeout(recalculateRoutes, 100);
+    RouteLabApi.injectEvent('node_crash', { node_id: nodeId });
   };
 
   const handleRecoverNode = (nodeId: string) => {
@@ -388,7 +541,6 @@ export const App: React.FC = () => {
       return { ...prev, [nodeId]: { ...cur, isCrashed: false } };
     });
 
-    // Mark connected links up
     setTopology((prev) => ({
       ...prev,
       links: prev.links.map((lnk) =>
@@ -408,7 +560,7 @@ export const App: React.FC = () => {
       },
     ]);
 
-    setTimeout(recalculateRoutes, 100);
+    RouteLabApi.injectEvent('node_recover', { node_id: nodeId });
   };
 
   const handleInjectPoisonAttack = (targetNode: string, maliciousCost: number) => {
@@ -427,7 +579,7 @@ export const App: React.FC = () => {
     ]);
 
     setIsConverged(false);
-    setTimeout(recalculateRoutes, 100);
+    RouteLabApi.injectEvent('link_cost', { u: 'R1', v: targetNode, cost: maliciousCost });
   };
 
   const handleActivateMitigation = () => {
@@ -446,21 +598,77 @@ export const App: React.FC = () => {
     ]);
 
     setIsConverged(false);
-    setTimeout(recalculateRoutes, 100);
   };
 
-  const handleLaunchScenario = (scenarioId: string, protocol: ProtocolType) => {
-    playChime('click');
-    if (scenarioId.includes('8')) {
-      setCurrentTopologyName('course-8-node');
-    } else if (scenarioId.includes('10')) {
-      setCurrentTopologyName('course-10-node');
-    } else {
-      setCurrentTopologyName('course-6-node');
-    }
+  const scenarioFileMap: Record<string, string> = {
+    'course-6-node-dv-vs-ls': '6_node_dv_vs_ls.json',
+    'course-8-node-failover': '8_node_bottleneck.json',
+    'course-10-node-wan': '10_node_multipath.json',
+    'count-to-infinity-flaw': 'count_to_infinity.json',
+    'count-to-infinity-remedy': 'count_to_infinity.json',
+    'bgp-tier1-policy': 'bgp_tier1_peering.json',
+    'poisoning-attack-mitigation': 'route_poisoning_attack.json',
+  };
 
-    setCurrentProtocol(protocol);
-    handleReset();
+  // Wire handleLaunchScenario to trigger real backend scenario definitions from examples/scenarios/
+  const handleLaunchScenario = async (scenarioId: string, protocol: ProtocolType) => {
+    playChime('click');
+    const fileName = scenarioFileMap[scenarioId] || '6_node_dv_vs_ls.json';
+
+    try {
+      const def = await RouteLabApi.getScenario(fileName);
+      if (def.topology_type && def.topology_type.includes('8')) {
+        setCurrentTopologyName('course-8-node');
+      } else if (def.topology_type && def.topology_type.includes('10')) {
+        setCurrentTopologyName('course-10-node');
+      } else {
+        setCurrentTopologyName('course-6-node');
+      }
+
+      const chosenProto = (def.default_protocol as ProtocolType) || protocol;
+      setCurrentProtocol(chosenProto);
+      setSimTime(0.0);
+      setIsConverged(false);
+      setConvTime(0.0);
+      setPackets([]);
+      stateHistory.current = [];
+
+      const topo = RouteLabApi.getFallbackTopology(
+        def.topology_type && def.topology_type.includes('8')
+          ? 'course-8-node'
+          : def.topology_type && def.topology_type.includes('10')
+          ? 'course-10-node'
+          : 'course-6-node'
+      );
+      setTopology(topo);
+
+      await RouteLabApi.startSimulation(topo, chosenProto, def.quiescence_window_s || 0.3);
+
+      if (def.events && Array.isArray(def.events)) {
+        for (const ev of def.events) {
+          RouteLabApi.injectEvent(ev.action, ev.params);
+        }
+        setEvents(
+          def.events.map((ev: any, idx: number) => ({
+            seq: idx + 1,
+            ts: ev.timestamp,
+            type: ev.action,
+            src: 'scenario_runner',
+            data: ev.params || {},
+          }))
+        );
+      }
+    } catch {
+      if (scenarioId.includes('8')) {
+        setCurrentTopologyName('course-8-node');
+      } else if (scenarioId.includes('10')) {
+        setCurrentTopologyName('course-10-node');
+      } else {
+        setCurrentTopologyName('course-6-node');
+      }
+      setCurrentProtocol(protocol);
+      handleReset();
+    }
   };
 
   const selectedNodeTelemetry = selectedNode ? nodeTelemetry[selectedNode] : null;
@@ -520,7 +728,7 @@ export const App: React.FC = () => {
           theme={theme}
         />
 
-        {/* 3. Golden Quill Path Tracer Panel */}
+        {/* 3. Golden Quill Path Tracer Panel with protocol-aware criteria */}
         <PathTracerPanel
           topology={topology}
           allRoutes={allRoutes}
@@ -528,9 +736,10 @@ export const App: React.FC = () => {
             setActivePath(p);
             setLoopDetected(loop);
           }}
+          protocol={currentProtocol}
         />
 
-        {/* 4. Node Inspector Drawer */}
+        {/* 4. Node Inspector Drawer with delineated metric units */}
         <NodeInspectorDrawer
           nodeId={selectedNode}
           onClose={() => setSelectedNode(null)}
@@ -545,13 +754,13 @@ export const App: React.FC = () => {
           flapsCount={selectedNodeTelemetry?.flaps || 0}
         />
 
-        {/* 5. Bottom Timeline Scrubber */}
+        {/* 5. Bottom Timeline Scrubber with historical scrubbing */}
         <TimelineScrubber
           currentTime={simTime}
           maxTime={15.0}
           isRunning={isRunning}
           onTogglePlay={handleTogglePlay}
-          onSeek={(t) => setSimTime(t)}
+          onSeek={handleSeek}
           events={events}
         />
       </main>

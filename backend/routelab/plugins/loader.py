@@ -14,13 +14,17 @@ from __future__ import annotations
 import importlib.util
 import inspect
 import sys
+import threading
 import time
 import traceback
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeVar, cast
 
 from routelab.plugins.interface import ProtocolContext, RouteEntry, RoutingProtocol
+
+T = TypeVar("T")
 
 
 @dataclass
@@ -178,7 +182,8 @@ class IsolatedProtocolRunner:
     - If a plugin throws an unhandled exception, the node is marked FAULTY with
       the traceback captured, but the simulation engine continues running.
     - If a plugin produces non-serializable messages, it is intercepted and logged.
-    - Time budget / watchdog limits execution duration per callback.
+    - Time budget / watchdog with thread preemption limits execution duration per callback,
+      preventing infinite loops (e.g. while True) from hanging the simulation engine.
     """
 
     def __init__(
@@ -187,81 +192,124 @@ class IsolatedProtocolRunner:
         protocol: RoutingProtocol,
         context: ProtocolContext,
         max_callback_ms: float = 200.0,
+        force_sandbox: bool = False,
     ) -> None:
         self.node_id = node_id
         self.protocol = protocol
         self.context = context
         self.max_callback_ms = max_callback_ms
+        self.force_sandbox = force_sandbox
 
         self.is_faulty: bool = False
         self.fault_traceback: str | None = None
         self.fault_error: str | None = None
+        mod = getattr(protocol.__class__, "__module__", "")
+        self._is_trusted: bool = mod.startswith(("routelab.protocols", "routelab.attacks"))
 
-    def _mark_fault(self, error: Exception, hook_name: str) -> None:
+    def _mark_fault(self, error: Exception, hook_name: str, tb_str: str | None = None) -> None:
         self.is_faulty = True
         self.fault_error = f"{type(error).__name__} in {hook_name}: {error}"
-        self.fault_traceback = traceback.format_exc()
+        self.fault_traceback = tb_str or traceback.format_exc()
         self.context.log(
             f"PLUGIN FAULT on {self.node_id}: {self.fault_error}\n{self.fault_traceback}",
             level="ERROR",
         )
 
-    def on_start(self) -> None:
+    def _execute_guarded(self, hook_name: str, fn: Callable[[], T], default: T) -> T:
         if self.is_faulty:
-            return
+            return default
+
+        # For trusted built-in protocols without explicit sandbox forcing,
+        # execute directly with timing
+        if self._is_trusted and not self.force_sandbox:
+            t0 = time.perf_counter()
+            try:
+                res = fn()
+            except Exception as exc:  # noqa: BLE001
+                self._mark_fault(exc, hook_name)
+                return default
+            dur_ms = (time.perf_counter() - t0) * 1000.0
+            if dur_ms > self.max_callback_ms:
+                self.context.log(
+                    f"Watchdog warning: {hook_name} took {dur_ms:.1f}ms "
+                    f"(limit: {self.max_callback_ms:.1f}ms)",
+                    level="WARNING",
+                )
+            return res
+
+        # For untrusted dynamic plugins: preemption watchdog thread guard
+        result: list[T] = [default]
+        exc_holder: list[tuple[Exception, str]] = []
+
+        def worker() -> None:
+            try:
+                result[0] = fn()
+            except Exception as exc:  # noqa: BLE001
+                exc_holder.append((exc, traceback.format_exc()))
+
+        timeout_s = max(self.max_callback_ms / 1000.0, 0.001)
+        thread = threading.Thread(target=worker, daemon=True)
         t0 = time.perf_counter()
-        try:
-            self.protocol.on_start(self.context)
-        except Exception as exc:  # noqa: BLE001
-            self._mark_fault(exc, "on_start")
-            return
-        dur_ms = (time.perf_counter() - t0) * 1000.0
-        if dur_ms > self.max_callback_ms:
+        thread.start()
+        thread.join(timeout=timeout_s)
+
+        if thread.is_alive():
+            # Preemption guard tripped: plugin is hanging in loop or excessive computation
+            self.is_faulty = True
+            self.fault_error = (
+                f"TimeoutError in {hook_name}: exceeded {self.max_callback_ms:.1f}ms limit"
+            )
+            self.fault_traceback = (
+                f"Watchdog preemption guard tripped in {hook_name} on node {self.node_id} "
+                f"(thread still running after {self.max_callback_ms:.1f}ms)"
+            )
             self.context.log(
-                f"Watchdog warning: on_start took {dur_ms:.1f}ms (> {self.max_callback_ms}ms)",
+                f"PLUGIN FAULT on {self.node_id}: {self.fault_error}\n{self.fault_traceback}",
+                level="ERROR",
+            )
+            return default
+
+        dur_ms = (time.perf_counter() - t0) * 1000.0
+        if exc_holder:
+            captured_exc, tb_str = exc_holder[0]
+            self._mark_fault(captured_exc, hook_name, tb_str=tb_str)
+            return default
+
+        if dur_ms > (self.max_callback_ms * 0.75):
+            self.context.log(
+                f"Watchdog warning: {hook_name} took {dur_ms:.1f}ms "
+                f"(limit: {self.max_callback_ms:.1f}ms)",
                 level="WARNING",
             )
+
+        return result[0]
+
+    def on_start(self) -> None:
+        self._execute_guarded("on_start", lambda: self.protocol.on_start(self.context), None)
 
     def on_message(self, src: str, msg: dict[str, Any]) -> None:
-        if self.is_faulty:
-            return
-        t0 = time.perf_counter()
-        try:
-            self.protocol.on_message(self.context, src, msg)
-        except Exception as exc:  # noqa: BLE001
-            self._mark_fault(exc, f"on_message({src})")
-            return
-        dur_ms = (time.perf_counter() - t0) * 1000.0
-        if dur_ms > self.max_callback_ms:
-            self.context.log(
-                f"Watchdog warning: on_message from {src} took {dur_ms:.1f}ms",
-                level="WARNING",
-            )
+        self._execute_guarded(
+            f"on_message({src})",
+            lambda: self.protocol.on_message(self.context, src, msg),
+            None,
+        )
 
     def on_link_change(self, nbr: str, cost: float, up: bool) -> None:
-        if self.is_faulty:
-            return
-        try:
-            self.protocol.on_link_change(self.context, nbr, cost, up)
-        except Exception as exc:  # noqa: BLE001
-            self._mark_fault(exc, f"on_link_change({nbr})")
+        self._execute_guarded(
+            f"on_link_change({nbr})",
+            lambda: self.protocol.on_link_change(self.context, nbr, cost, up),
+            None,
+        )
 
     def on_timer(self, timer_id: str) -> None:
-        if self.is_faulty:
-            return
-        try:
-            self.protocol.on_timer(self.context, timer_id)
-        except Exception as exc:  # noqa: BLE001
-            self._mark_fault(exc, f"on_timer({timer_id})")
+        self._execute_guarded(
+            f"on_timer({timer_id})",
+            lambda: self.protocol.on_timer(self.context, timer_id),
+            None,
+        )
 
     def get_table(self) -> list[RouteEntry]:
-        if self.is_faulty:
-            return []
-        try:
-            return self.protocol.get_table()
-        except Exception as exc:  # noqa: BLE001
-            self._mark_fault(exc, "get_table")
-            return []
+        return self._execute_guarded("get_table", lambda: self.protocol.get_table(), [])
 
     def describe_state(self) -> dict[str, Any]:
         if self.is_faulty:
@@ -270,14 +318,17 @@ class IsolatedProtocolRunner:
                 "error": self.fault_error,
                 "traceback": self.fault_traceback,
             }
-        try:
+
+        def _get_desc() -> dict[str, Any]:
             state = self.protocol.describe_state()
             state["faulty"] = False
             return state
-        except Exception as exc:  # noqa: BLE001
-            self._mark_fault(exc, "describe_state")
+
+        res = self._execute_guarded("describe_state", _get_desc, cast(dict[str, Any], {}))
+        if not res:
             return {
                 "faulty": True,
                 "error": self.fault_error,
                 "traceback": self.fault_traceback,
             }
+        return res

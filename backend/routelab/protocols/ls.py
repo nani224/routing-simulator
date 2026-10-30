@@ -88,9 +88,18 @@ class LinkStateProtocol(RoutingProtocol):
         self._node_id: str = ""
         self._spf_dirty: bool = True
 
+        # Reliable flooding pending acknowledgements: (nbr, adv, seq) -> (sent_time, retries, msg)
+        self.pending_acks: dict[tuple[str, str, int], tuple[float, int, dict[str, Any]]] = {}
+        self._last_aging_time: float = 0.0
+        self._has_started: bool = False
+
     def on_start(self, ctx: ProtocolContext) -> None:
         """Discover active neighbors, generate initial LSA, flood, and run SPF."""
+        is_recovery = self._has_started
+        self._has_started = True
+
         self._node_id = ctx.node_id
+        self._last_aging_time = ctx.now()
         self.local_neighbors.clear()
         for nbr in ctx.neighbors():
             if nbr.is_up:
@@ -99,13 +108,39 @@ class LinkStateProtocol(RoutingProtocol):
         # Generate local LSA and flood
         self._originate_and_flood_lsa(ctx)
 
-        # Schedule periodic refresh
+        # On node recovery, trigger LSDB synchronization exchange before routing table recomputation
+        if is_recovery:
+            sync_req = {"type": "lsdb_request", "requester": ctx.node_id}
+            for nbr in ctx.neighbors():
+                if nbr.is_up:
+                    ctx.send(nbr.node_id, sync_req)
+
+        # Schedule periodic refresh & maintenance
         if self.refresh_interval_s > 0:
             ctx.set_timer("refresh_lsa", self.refresh_interval_s * 1000.0)
+        ctx.set_timer("ls_maintenance", 1000.0)
 
     def on_message(self, ctx: ProtocolContext, src: str, msg: dict[str, Any]) -> None:
-        """Process incoming LSA packet with O(1) sequence check and split-horizon flood."""
-        if msg.get("type") != "lsa":
+        """Process incoming LSA packet with reliable LSAck, LSDB sync, and split-horizon flood."""
+        msg_type = msg.get("type")
+
+        # 1. Handle LSA Acknowledgement
+        if msg_type == "lsack":
+            adv_acked = str(msg.get("adv", ""))
+            seq_acked = int(msg.get("seq", 0))
+            self.pending_acks.pop((src, adv_acked, seq_acked), None)
+            return
+
+        # 2. Handle LSDB Synchronization Request from newly started or recovered neighbor
+        if msg_type == "lsdb_request":
+            for lsa in list(self.lsdb.values()):
+                out_msg = {"type": "lsa", "lsa": lsa.to_dict()}
+                ctx.send(src, out_msg)
+                self.pending_acks[(src, lsa.adv_router, lsa.seq)] = (ctx.now(), 0, out_msg)
+            return
+
+        # 3. Handle standard LSA packet
+        if msg_type != "lsa":
             return
 
         raw_lsa = msg.get("lsa")
@@ -114,6 +149,10 @@ class LinkStateProtocol(RoutingProtocol):
 
         lsa = LSA.from_dict(raw_lsa)
         adv = lsa.adv_router
+
+        # Always acknowledge received LSA back to ingress sender (reliable flooding)
+        ack_msg = {"type": "lsack", "adv": adv, "seq": lsa.seq}
+        ctx.send(src, ack_msg)
 
         # O(1) duplicate suppression check against current LSDB
         current_lsa = self.lsdb.get(adv)
@@ -127,9 +166,11 @@ class LinkStateProtocol(RoutingProtocol):
 
         # Flood LSA out all other active neighbor interfaces except the ingress source
         flood_msg = {"type": "lsa", "lsa": lsa.to_dict()}
+        now = ctx.now()
         for nbr in ctx.neighbors():
             if nbr.is_up and nbr.node_id != src:
                 ctx.send(nbr.node_id, flood_msg)
+                self.pending_acks[(nbr.node_id, adv, lsa.seq)] = (now, 0, flood_msg)
 
     def on_link_change(self, ctx: ProtocolContext, nbr: str, cost: float, up: bool) -> None:
         """Handle link mutations by originating a new LSA with incremented sequence."""
@@ -137,19 +178,51 @@ class LinkStateProtocol(RoutingProtocol):
             self.local_neighbors[nbr] = cost
         else:
             self.local_neighbors.pop(nbr, None)
+            # Remove pending acks destined to dead neighbor
+            for k in list(self.pending_acks.keys()):
+                if k[0] == nbr:
+                    self.pending_acks.pop(k, None)
 
         # Originate new LSA reflecting link change and flood immediately
         self._originate_and_flood_lsa(ctx)
 
     def on_timer(self, ctx: ProtocolContext, timer_id: str) -> None:
-        """Handle periodic LSA refresh and database aging."""
+        """Handle periodic LSA refresh, database aging, and unacknowledged retransmissions."""
+        now = ctx.now()
         if timer_id == "refresh_lsa":
             self._originate_and_flood_lsa(ctx)
             if self.refresh_interval_s > 0:
                 ctx.set_timer("refresh_lsa", self.refresh_interval_s * 1000.0)
 
+        elif timer_id == "ls_maintenance":
+            # 1. Age and evict expired LSAs
+            elapsed = max(0.0, now - self._last_aging_time)
+            self._last_aging_time = now
+            if elapsed > 0:
+                expired_routers: list[str] = []
+                for r_id, lsa in self.lsdb.items():
+                    if r_id != self._node_id:
+                        lsa.age += elapsed
+                        if lsa.age >= self.max_lsa_age_s:
+                            expired_routers.append(r_id)
+                for r_id in expired_routers:
+                    self.lsdb.pop(r_id, None)
+                    self._spf_dirty = True
+
+            # 2. Retransmit unacknowledged LSAs (reliable flooding)
+            for key, (sent_time, retries, msg_to_send) in list(self.pending_acks.items()):
+                nbr_id, _adv_r, _seq_num = key
+                if now - sent_time >= 1.0:
+                    if retries < 3:
+                        ctx.send(nbr_id, msg_to_send)
+                        self.pending_acks[key] = (now, retries + 1, msg_to_send)
+                    else:
+                        self.pending_acks.pop(key, None)
+
+            ctx.set_timer("ls_maintenance", 1000.0)
+
     def _originate_and_flood_lsa(self, ctx: ProtocolContext) -> None:
-        """Construct local LSA, store in local LSDB, and broadcast."""
+        """Construct local LSA, store in local LSDB, and broadcast reliably."""
         self._node_id = ctx.node_id
         self._my_seq += 1
         links = [(nbr, cost) for nbr, cost in self.local_neighbors.items()]
@@ -164,9 +237,11 @@ class LinkStateProtocol(RoutingProtocol):
         self._spf_dirty = True
 
         msg = {"type": "lsa", "lsa": local_lsa.to_dict()}
+        now = ctx.now()
         for nbr in ctx.neighbors():
             if nbr.is_up:
                 ctx.send(nbr.node_id, msg)
+                self.pending_acks[(nbr.node_id, ctx.node_id, self._my_seq)] = (now, 0, msg)
 
     def _recompute_spf(self, root_id: str) -> None:
         """Execute Dijkstra SPF using heapq priority queue on active LSDB graph with O(1) checks."""

@@ -18,14 +18,18 @@ export const CompareWorkbench: React.FC<CompareWorkbenchProps> = ({
   const [protoB, setProtoB] = useState<ProtocolType>('link_state');
   const [results, setResults] = useState<Record<string, ComparisonMetrics> | null>(null);
   const [isComparing, setIsComparing] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
   const handleRunComparison = async () => {
     setIsComparing(true);
+    setError(null);
     try {
       const data = await RouteLabApi.runCompare(topology, [protoA, protoB], 5.0);
       setResults(data);
+    } catch (err: any) {
+      setError(err?.message || 'Comparison benchmark failed on backend');
     } finally {
       setIsComparing(false);
     }
@@ -159,6 +163,23 @@ export const CompareWorkbench: React.FC<CompareWorkbenchProps> = ({
 
         {/* Results Area */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '1.4rem' }}>
+          {error && (
+            <div
+              style={{
+                padding: '0.9rem',
+                marginBottom: '1rem',
+                borderRadius: '6px',
+                background: 'oklch(from var(--accent-crimson) l c h / 0.12)',
+                border: '1px solid var(--accent-crimson)',
+                color: 'var(--accent-crimson)',
+                fontSize: '0.82rem',
+                fontFamily: 'var(--font-mono)',
+              }}
+            >
+              <strong>Benchmark Error:</strong> {error}
+            </div>
+          )}
+
           {!results ? (
             <div
               style={{

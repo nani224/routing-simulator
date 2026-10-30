@@ -7,8 +7,11 @@ export class RouteLabApi {
   static async listTopologies(): Promise<string[]> {
     try {
       const res = await fetch(`${API_BASE}/api/topologies`);
-      if (!res.ok) throw new Error('API error');
+      if (!res.ok) throw new Error(`API error: ${res.statusText}`);
       const data = await res.json();
+      if (Array.isArray(data)) {
+        return data.map((t: any) => t.name || t);
+      }
       return data.topologies || ['course-6-node', 'course-8-node', 'course-10-node'];
     } catch {
       return ['course-6-node', 'course-8-node', 'course-10-node', 'ring-10', 'grid-9'];
@@ -18,8 +21,12 @@ export class RouteLabApi {
   static async getTopology(name: string): Promise<TopologyData> {
     try {
       const res = await fetch(`${API_BASE}/api/topologies/${name}`);
-      if (!res.ok) throw new Error('API error');
-      return await res.json();
+      if (!res.ok) throw new Error(`API error: ${res.statusText}`);
+      const data = await res.json();
+      if (data && data.nodes && data.links) {
+        return data;
+      }
+      return this.getFallbackTopology(name);
     } catch {
       return this.getFallbackTopology(name);
     }
@@ -33,9 +40,9 @@ export class RouteLabApi {
       const res = await fetch(`${API_BASE}/api/topologies/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ generator, params }),
+        body: JSON.stringify({ kind: generator, ...params }),
       });
-      if (!res.ok) throw new Error('API error');
+      if (!res.ok) throw new Error(`API error: ${res.statusText}`);
       return await res.json();
     } catch {
       return this.getFallbackTopology('course-6-node');
@@ -45,22 +52,48 @@ export class RouteLabApi {
   static async startSimulation(
     topology: TopologyData,
     protocol: ProtocolType,
-    quiescence_s = 0.5
+    quiescence_s = 0.5,
+    clockMode = 'virtual',
+    clockSpeed = 1.0
   ): Promise<any> {
+    const topology_data = {
+      nodes: Object.entries(topology.nodes).map(([id, data]) => ({
+        id,
+        x: data.x,
+        y: data.y,
+        as_number: data.as_number,
+      })),
+      links: topology.links.map((link) => ({
+        source: link.source,
+        target: link.target,
+        cost: link.cost,
+        latency_ms: link.latency_ms,
+        jitter_ms: link.jitter_ms,
+        loss_rate: link.loss_rate,
+        bandwidth_bps: link.bandwidth_bps,
+      })),
+    };
+
     try {
       const res = await fetch(`${API_BASE}/api/simulation/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          topology,
-          protocol,
+          topology_name: topology.name || 'Course-6-Node-Benchmark',
+          topology_data,
+          protocol_name: protocol,
           quiescence_window_s: quiescence_s,
+          clock_mode: clockMode,
+          clock_speed: clockSpeed,
         }),
       });
+      if (!res.ok) {
+        throw new Error(`Failed to start backend simulation: ${res.statusText}`);
+      }
       return await res.json();
     } catch (e) {
-      console.warn('Backend offline, running in local client engine mode:', e);
-      return { status: 'client_fallback' };
+      console.warn('Backend connection failed:', e);
+      return { status: 'offline', error: String(e) };
     }
   }
 
@@ -82,12 +115,12 @@ export class RouteLabApi {
     }
   }
 
-  static async stepSimulation(delta = 0.1): Promise<any> {
+  static async stepSimulation(step_duration_s = 0.1): Promise<any> {
     try {
       const res = await fetch(`${API_BASE}/api/simulation/step`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ delta }),
+        body: JSON.stringify({ step_duration_s }),
       });
       return await res.json();
     } catch {
@@ -103,8 +136,8 @@ export class RouteLabApi {
         body: JSON.stringify({ action, params }),
       });
       return await res.json();
-    } catch {
-      return { status: 'injected_locally' };
+    } catch (e) {
+      return { status: 'injection_failed', error: String(e) };
     }
   }
 
@@ -119,54 +152,85 @@ export class RouteLabApi {
     }
   }
 
+  static async listScenarios(): Promise<any[]> {
+    const res = await fetch(`${API_BASE}/api/scenarios`);
+    if (!res.ok) throw new Error(`Failed to list scenarios: ${res.statusText}`);
+    return await res.json();
+  }
+
+  static async getScenario(fileName: string): Promise<any> {
+    const res = await fetch(`${API_BASE}/api/scenarios/${fileName}`);
+    if (!res.ok) throw new Error(`Failed to load scenario ${fileName}: ${res.statusText}`);
+    return await res.json();
+  }
+
+  static async runScenario(fileName: string, overrideProtocol?: ProtocolType): Promise<any> {
+    const res = await fetch(`${API_BASE}/api/scenarios/run`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        file_name: fileName,
+        override_protocol: overrideProtocol,
+      }),
+    });
+    if (!res.ok) throw new Error(`Scenario run failed: ${res.statusText}`);
+    return await res.json();
+  }
+
   static async runCompare(
     topology: TopologyData,
     protocols: ProtocolType[],
     duration_s = 5.0
   ): Promise<Record<string, ComparisonMetrics>> {
-    try {
-      const res = await fetch(`${API_BASE}/api/simulation/compare`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          topology,
-          protocols,
-          events: [],
-          duration_s,
-        }),
-      });
-      if (!res.ok) throw new Error('API error');
-      const data = await res.json();
-      return data.results || {};
-    } catch {
-      // Return realistic comparative simulation metrics
-      return {
-        distance_vector: {
-          protocol: 'Distance Vector (Bellman-Ford)',
-          convergence_time_s: 0.62,
-          total_messages: 142,
-          total_bytes: 18460,
-          total_flaps: 8,
-          stretch: 1.0,
-        },
-        link_state: {
-          protocol: 'Link State (Dijkstra / OSPF)',
-          convergence_time_s: 0.18,
-          total_messages: 88,
-          total_bytes: 11240,
-          total_flaps: 2,
-          stretch: 1.0,
-        },
-        flooding: {
-          protocol: 'Flooding Baseline',
-          convergence_time_s: 0.12,
-          total_messages: 480,
-          total_bytes: 62400,
-          total_flaps: 0,
-          stretch: 1.0,
-        },
+    const backendTopologyData = {
+      nodes: Object.entries(topology.nodes).map(([id, data]) => ({
+        id,
+        x: data.x,
+        y: data.y,
+        as_number: data.as_number,
+      })),
+      links: topology.links.map((link) => ({
+        source: link.source,
+        target: link.target,
+        cost: link.cost,
+        latency_ms: link.latency_ms,
+        jitter_ms: link.jitter_ms,
+        loss_rate: link.loss_rate,
+        bandwidth_bps: link.bandwidth_bps,
+      })),
+    };
+
+    const res = await fetch(`${API_BASE}/api/simulation/compare`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        topology_name: topology.name || 'Course-6-Node-Benchmark',
+        topology_data: backendTopologyData,
+        protocols,
+        events: [],
+        time_limit_s: duration_s,
+      }),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`Comparison API failed (${res.status}): ${errText}`);
+    }
+
+    const data = await res.json();
+    const rawMetrics = data.metrics || data.results || {};
+    const normalized: Record<string, ComparisonMetrics> = {};
+    for (const [key, m] of Object.entries(rawMetrics) as [string, any][]) {
+      normalized[key] = {
+        protocol: m.protocol_name || m.protocol || key,
+        convergence_time_s: m.convergence_time_s ?? 0,
+        total_messages: m.total_control_messages ?? m.total_messages ?? 0,
+        total_bytes: m.total_control_bytes ?? m.total_bytes ?? 0,
+        total_flaps: m.total_route_flaps ?? m.total_flaps ?? 0,
+        stretch: m.average_path_stretch ?? m.stretch ?? 1.0,
       };
     }
+    return normalized;
   }
 
   static connectWebSocket(
@@ -199,7 +263,7 @@ export class RouteLabApi {
         ws.onerror = () => {
           ws?.close();
         };
-      } catch (e) {
+      } catch {
         onStatusChange?.(false);
         if (!isClosed) {
           setTimeout(connect, 3000);

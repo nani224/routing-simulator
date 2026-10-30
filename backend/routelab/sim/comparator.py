@@ -128,10 +128,14 @@ class CompareEngine:
         if not results:
             return winners
 
-        # Lowest Convergence Time
-        winners["convergence_time"] = min(
-            results.keys(), key=lambda k: results[k].convergence_time_s
-        )
+        # Lowest Convergence Time (Only among protocols that successfully converged)
+        converged_candidates = [k for k, v in results.items() if v.is_converged]
+        if converged_candidates:
+            winners["convergence_time"] = min(
+                converged_candidates, key=lambda k: results[k].convergence_time_s
+            )
+        else:
+            winners["convergence_time"] = "None (Neither Converged)"
 
         # Lowest Control Message Overhead
         winners["control_messages"] = min(
@@ -161,8 +165,13 @@ class CompareEngine:
         notes: list[str] = []
         if "convergence_time" in winners:
             winner = winners["convergence_time"]
-            t = results[winner].convergence_time_s
-            notes.append(f"{winner} converged fastest ({t:.3f}s)")
+            if winner in results:
+                t = results[winner].convergence_time_s
+                notes.append(f"{winner} converged fastest ({t:.3f}s)")
+            else:
+                notes.append(
+                    "No protocol achieved network convergence before the simulation limit."
+                )
 
         if "control_messages" in winners:
             winner = winners["control_messages"]

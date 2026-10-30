@@ -170,20 +170,20 @@ class DistanceVectorProtocol(RoutingProtocol):
                         if self.hold_down_duration_s > 0:
                             curr_route.in_hold_down = True
                             curr_route.hold_down_until = now + self.hold_down_duration_s
-
-                        best_cost = self.infinity
-                        best_nbr = src
-                        for other_nbr, nbr_c in self.neighbor_costs.items():
-                            alt_cost = nbr_c + self.neighbor_vectors.get(other_nbr, {}).get(
-                                dst, self.infinity
-                            )
-                            if alt_cost < best_cost:
-                                best_cost = alt_cost
-                                best_nbr = other_nbr
-                        if best_cost < self.infinity:
-                            curr_route.cost = best_cost
-                            curr_route.next_hop = best_nbr
-                            curr_route.in_hold_down = False
+                        else:
+                            best_cost = self.infinity
+                            best_nbr = src
+                            for other_nbr, nbr_c in self.neighbor_costs.items():
+                                alt_cost = nbr_c + self.neighbor_vectors.get(other_nbr, {}).get(
+                                    dst, self.infinity
+                                )
+                                if alt_cost < best_cost:
+                                    best_cost = alt_cost
+                                    best_nbr = other_nbr
+                            if best_cost < self.infinity:
+                                curr_route.cost = best_cost
+                                curr_route.next_hop = best_nbr
+                                curr_route.in_hold_down = False
                     elif new_cost > curr_route.cost:
                         # Metric increased: check all active neighbors for a better path
                         best_cost = new_cost
@@ -229,14 +229,31 @@ class DistanceVectorProtocol(RoutingProtocol):
             self.neighbor_costs[nbr] = cost
             # Recompute or update route to neighbor directly
             curr_route = self.table.get(nbr)
-            if curr_route is None or cost < curr_route.cost or curr_route.next_hop == nbr:
-                self.table[nbr] = DVRoute(
-                    destination=nbr,
-                    next_hop=nbr,
-                    cost=cost,
-                    last_updated=now,
-                )
+            if curr_route is None or curr_route.next_hop == nbr:
+                if curr_route is None or abs(curr_route.cost - cost) > 1e-6:
+                    self.table[nbr] = DVRoute(
+                        destination=nbr,
+                        next_hop=nbr,
+                        cost=cost,
+                        last_updated=now,
+                    )
+                    changed = True
+            elif cost < curr_route.cost:
+                curr_route.cost = cost
+                curr_route.next_hop = nbr
+                curr_route.last_updated = now
                 changed = True
+
+            # Update all routes that transit through nbr
+            for dst, route in self.table.items():
+                if dst != nbr and dst != ctx.node_id and route.next_hop == nbr:
+                    nbr_vec = self.neighbor_vectors.get(nbr, {})
+                    nbr_adv_cost = nbr_vec.get(dst, self.infinity)
+                    new_cost = min(self.infinity, cost + nbr_adv_cost)
+                    if abs(route.cost - new_cost) > 1e-6:
+                        route.cost = new_cost
+                        route.last_updated = now
+                        changed = True
         else:
             # Link down
             self.neighbor_costs.pop(nbr, None)
@@ -253,8 +270,13 @@ class DistanceVectorProtocol(RoutingProtocol):
                     changed = True
 
             # Attempt alternative path search across remaining active neighbors
+            # ONLY for routes NOT currently suppressed by a hold-down timer
             for dst, route in self.table.items():
                 if route.cost >= self.infinity and dst != ctx.node_id:
+                    if route.in_hold_down and now < route.hold_down_until:
+                        # Hold-down active: preserve unreachable state to prevent transient loops
+                        continue
+
                     best_cost = self.infinity
                     best_nbr = ""
                     for other_nbr, nbr_c in self.neighbor_costs.items():
@@ -276,8 +298,9 @@ class DistanceVectorProtocol(RoutingProtocol):
     def on_timer(self, ctx: ProtocolContext, timer_id: str) -> None:
         """Handle periodic updates and route age expiration."""
         if timer_id == "periodic_update":
-            # Check route expirations
+            # Check route expirations and hold-down timers
             now = ctx.now()
+            table_changed = False
             for dst, route in list(self.table.items()):
                 if (
                     dst != ctx.node_id
@@ -285,8 +308,31 @@ class DistanceVectorProtocol(RoutingProtocol):
                     and (now - route.last_updated) > self.route_timeout_s
                 ):
                     route.cost = self.infinity
+                    route.last_updated = now
+                    table_changed = True
+                    if self.hold_down_duration_s > 0:
+                        route.in_hold_down = True
+                        route.hold_down_until = now + self.hold_down_duration_s
 
-            self._send_advertisements(ctx, triggered=False)
+                # Check hold-down expiration
+                if route.in_hold_down and now >= route.hold_down_until:
+                    route.in_hold_down = False
+                    if route.cost >= self.infinity and dst != ctx.node_id:
+                        best_cost = self.infinity
+                        best_nbr = ""
+                        for other_nbr, nbr_c in self.neighbor_costs.items():
+                            vec = self.neighbor_vectors.get(other_nbr, {})
+                            alt_cost = nbr_c + vec.get(dst, self.infinity)
+                            if alt_cost < best_cost:
+                                best_cost = alt_cost
+                                best_nbr = other_nbr
+                        if best_cost < self.infinity:
+                            route.cost = best_cost
+                            route.next_hop = best_nbr
+                            route.last_updated = now
+                            table_changed = True
+
+            self._send_advertisements(ctx, triggered=table_changed)
 
             # Reschedule periodic update
             if self.periodic_interval_s > 0:

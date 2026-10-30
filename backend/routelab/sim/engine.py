@@ -118,6 +118,7 @@ class SimulationEngine:
                 factory_no_args = cast(Callable[[], RoutingProtocol], self.protocol_factory)
                 protocol_inst = factory_no_args()
             node.set_protocol(protocol_inst)
+            node.on_table_changed = self._on_node_table_changed
             self.nodes[node_id] = node
 
         # 2. Instantiate and wire link emulators
@@ -186,6 +187,11 @@ class SimulationEngine:
             assert isinstance(self.clock, VirtualClock)
             self.clock.schedule(delay, lambda: self._trigger_event(ev))
 
+    def _on_node_table_changed(self) -> None:
+        """Invoked when any node's routing table mutates."""
+        self._last_mutation_time = self.clock.now()
+        self._is_converged = False
+
     def _trigger_event(self, ev: ScheduledSimulationEvent) -> None:
         if not ev.executed:
             ev.executed = True
@@ -200,7 +206,9 @@ class SimulationEngine:
             return
 
         link.is_up = up
-        self._last_mutation_time = self.clock.now()
+        now = self.clock.now()
+        self._last_mutation_time = now
+        self._convergence_start_time = now
         self._is_converged = False
 
         if u in self.nodes:
@@ -209,7 +217,7 @@ class SimulationEngine:
             self.nodes[v].notify_link_change(u, link.cost, up)
 
         self.event_store.append(
-            timestamp=self.clock.now(),
+            timestamp=now,
             event_type=EventType.LINK_STATE,
             source=key,
             data={"node_a": u, "node_b": v, "is_up": up, "cost": link.cost},
@@ -224,7 +232,9 @@ class SimulationEngine:
             return
 
         link.cost = cost
-        self._last_mutation_time = self.clock.now()
+        now = self.clock.now()
+        self._last_mutation_time = now
+        self._convergence_start_time = now
         self._is_converged = False
 
         if u in self.nodes:
@@ -233,7 +243,7 @@ class SimulationEngine:
             self.nodes[v].notify_link_change(u, cost, link.is_up)
 
         self.event_store.append(
-            timestamp=self.clock.now(),
+            timestamp=now,
             event_type=EventType.LINK_STATE,
             source=key,
             data={"node_a": u, "node_b": v, "is_up": link.is_up, "cost": cost},
@@ -246,7 +256,9 @@ class SimulationEngine:
         if node is None:
             return
         node.crash()
-        self._last_mutation_time = self.clock.now()
+        now = self.clock.now()
+        self._last_mutation_time = now
+        self._convergence_start_time = now
         self._is_converged = False
 
         # Notify neighbors of link down to this node
@@ -255,7 +267,7 @@ class SimulationEngine:
                 self.nodes[nbr].notify_link_change(node_id, 999999, False)
 
         self.event_store.append(
-            timestamp=self.clock.now(),
+            timestamp=now,
             event_type=EventType.NODE_STATE,
             source=node_id,
             data={"status": "crashed"},
@@ -268,15 +280,22 @@ class SimulationEngine:
         if node is None:
             return
         node.recover()
-        self._last_mutation_time = self.clock.now()
+        now = self.clock.now()
+        self._last_mutation_time = now
+        self._convergence_start_time = now
         self._is_converged = False
 
+        from routelab.core.node import NodeStatus
+
         for nbr, link in node.links.items():
-            if link.is_up and nbr in self.nodes:
-                self.nodes[nbr].notify_link_change(node_id, link.cost, True)
+            nbr_node = self.nodes.get(nbr)
+            # Only restore link if the link itself is configured UP and neighbor router is alive
+            if link.is_up and nbr_node is not None and nbr_node.status != NodeStatus.CRASHED:
+                nbr_node.notify_link_change(node_id, link.cost, True)
+                node.notify_link_change(nbr, link.cost, True)
 
         self.event_store.append(
-            timestamp=self.clock.now(),
+            timestamp=now,
             event_type=EventType.NODE_STATE,
             source=node_id,
             data={"status": "running"},
@@ -289,6 +308,7 @@ class SimulationEngine:
         Criteria:
         1. All link in-flight queues are completely empty.
         2. No routing table mutations have occurred during the quiescence window.
+        3. No pending scheduled events remain.
         """
         # Check if there are unexecuted scheduled events pending
         if any(not ev.executed for ev in self._scheduled_events):
@@ -300,6 +320,15 @@ class SimulationEngine:
         if total_in_flight > 0:
             self._last_mutation_time = now
             return False
+
+        # In virtual clock, verify no scheduled events remain in queue within quiescence window
+        if self.clock.is_virtual:
+            from routelab.core.clock import VirtualClock
+
+            if isinstance(self.clock, VirtualClock) and self.clock._event_queue:
+                next_event_time = self.clock._event_queue[0].timestamp
+                if next_event_time <= now + (self.quiescence_window_s * 0.5):
+                    return False
 
         # Check quiescence duration
         quiescence_duration = now - self._last_mutation_time
@@ -340,6 +369,11 @@ class SimulationEngine:
             return True
 
         return False
+
+    def baseline_routing_tables(self) -> None:
+        """Baseline routing tables on all nodes to prevent initial convergence counting as flaps."""
+        for node in self.nodes.values():
+            node.baseline_routing_table()
 
     async def _realtime_monitor_loop(self) -> None:
         """Periodic loop processing scheduled events, convergence checks, and frame deltas."""

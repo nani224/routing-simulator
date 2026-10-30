@@ -41,6 +41,7 @@ class RunMetrics:
     packets_delivered: int
     packets_dropped: int
     delivery_ratio: float
+    is_converged: bool = True
     per_node_messages: dict[str, int] = field(default_factory=dict)
     per_node_flaps: dict[str, int] = field(default_factory=dict)
 
@@ -98,6 +99,7 @@ class MetricsCollector:
             packets_delivered=total_delivered,
             packets_dropped=total_dropped,
             delivery_ratio=round(delivery_ratio, 4),
+            is_converged=engine.convergence_record.is_converged,
             per_node_messages=per_node_msgs,
             per_node_flaps=per_node_flaps,
         )
@@ -125,6 +127,7 @@ class MetricsCollector:
             "packets_delivered",
             "packets_dropped",
             "delivery_ratio",
+            "is_converged",
         ]
 
         writer = csv.DictWriter(output, fieldnames=fieldnames, extrasaction="ignore")

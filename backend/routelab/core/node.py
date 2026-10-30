@@ -14,6 +14,7 @@ import enum
 import logging
 import random
 import socket
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 from routelab.core.packet import Packet, PacketType
@@ -89,6 +90,8 @@ class RouterNode(ProtocolContext):
         self.bytes_received: int = 0
         self.flaps_count: int = 0
         self._last_table_hash: int = 0
+        self._known_routes: dict[str, tuple[str, float]] = {}
+        self.on_table_changed: Callable[[], None] | None = None
 
     @property
     def node_id(self) -> str:
@@ -203,15 +206,27 @@ class RouterNode(ProtocolContext):
 
     def _nbr_receive_packet(self, nbr: str, pkt: Packet) -> None:
         # Link delivered packet to neighbor. This method is called by link emulator on arrival.
-        # Neighbor node receives packet via its receive_packet handler.
         nbr_link = self.links.get(nbr)
         if nbr_link is None or not nbr_link.is_up:
             return
-        # Node manager or link will route to neighbor node instance
-        # Handler invoked via registered on_packet_delivered
         if hasattr(self, "_network_router_lookup"):
             target_node: RouterNode | None = self._network_router_lookup(nbr)
             if target_node is not None:
+                # In real-time mode with bound UDP transports, transmit over physical UDP socket
+                if (
+                    not self.clock.is_virtual
+                    and self._transport is not None
+                    and target_node._assigned_port > 0
+                ):
+                    try:
+                        self._transport.sendto(
+                            pkt.to_bytes(),
+                            (target_node.bind_host, target_node._assigned_port),
+                        )
+                        return
+                    except Exception as exc:
+                        logger.debug("UDP sendto failed for %s -> %s: %s", self.node_id, nbr, exc)
+
                 target_node.receive_packet(pkt)
 
     def receive_packet(self, pkt: Packet) -> None:
@@ -288,11 +303,16 @@ class RouterNode(ProtocolContext):
     def neighbors(self) -> list[NeighborInfo]:
         infos: list[NeighborInfo] = []
         for nbr, link in self.links.items():
+            nbr_up = link.is_up
+            if hasattr(self, "_network_router_lookup"):
+                target: RouterNode | None = self._network_router_lookup(nbr)
+                if target is not None and target.status == NodeStatus.CRASHED:
+                    nbr_up = False
             infos.append(
                 NeighborInfo(
                     node_id=nbr,
                     cost=link.cost,
-                    is_up=link.is_up,
+                    is_up=nbr_up,
                     latency_ms=link.latency_ms,
                 )
             )
@@ -328,12 +348,39 @@ class RouterNode(ProtocolContext):
         state["flaps_count"] = self.flaps_count
         return state
 
+    def baseline_routing_table(self) -> None:
+        """Baseline current routing table so initial route learning is not counted as flaps."""
+        if self._runner is not None:
+            table = self._runner.get_table()
+            self._known_routes = {r.destination: (r.next_hop, r.cost) for r in table}
+            self._last_table_hash = hash(tuple((r.destination, r.next_hop, r.cost) for r in table))
+        self.flaps_count = 0
+
     def _check_table_flaps(self) -> None:
-        """Detect route changes (flaps) by hashing destination/next-hop pairs."""
+        """Detect route changes (flaps) and notify listeners without false counts on boot."""
         if self._runner is None:
             return
         table = self._runner.get_table()
         table_sig = hash(tuple((r.destination, r.next_hop, r.cost) for r in table))
-        if self._last_table_hash != 0 and table_sig != self._last_table_hash:
-            self.flaps_count += 1
+        if table_sig == self._last_table_hash:
+            return
+
+        current_map: dict[str, tuple[str, float]] = {
+            r.destination: (r.next_hop, r.cost) for r in table
+        }
+
+        # Any destination previously known that changed next_hop or cost, or disappeared
+        for dst, old_val in self._known_routes.items():
+            if dst not in current_map:
+                # Withdrawn / lost route
+                self.flaps_count += 1
+            elif current_map[dst] != old_val:
+                # Next-hop or metric changed
+                self.flaps_count += 1
+
+        # Note: If a dst was not in self._known_routes, it's newly installed -> not a flap!
+        self._known_routes = current_map
         self._last_table_hash = table_sig
+
+        if self.on_table_changed is not None:
+            self.on_table_changed()

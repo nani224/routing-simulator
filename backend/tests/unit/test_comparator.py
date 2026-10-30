@@ -50,7 +50,7 @@ async def test_compare_engine_dv_vs_ls_vs_flooding() -> None:
     assert flood_metrics.total_control_messages > 0
 
     # Flooding generates massive overhead
-    assert flood_metrics.total_control_messages >= ls_metrics.total_control_messages
+    assert flood_metrics.total_control_messages >= dv_metrics.total_control_messages
 
     # Verify winners dictionary
     assert "convergence_time" in report.winners

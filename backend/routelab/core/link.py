@@ -72,6 +72,7 @@ class LinkEmulator:
         # In-flight queue for this link
         self._queue: list[_InFlightPacket] = []
         self._packet_counter: int = 0
+        self._last_tx_finish_time: float = 0.0
         self._worker_task: asyncio.Task[None] | None = None
         self._wake_event: asyncio.Event = asyncio.Event()
         self._running: bool = False
@@ -120,20 +121,23 @@ class LinkEmulator:
             self.stats.bytes_dropped += pkt_bytes
             return False
 
-        # Calculate propagation and serialization delay
+        # Calculate propagation and queued serialization delay
+        now = self.clock.now()
         base_delay_s = self.latency_ms / 1000.0
         jitter_s = (
             self._rng.uniform(-self.jitter_ms, self.jitter_ms) / 1000.0
             if self.jitter_ms > 0
             else 0.0
         )
-        total_delay = max(0.001, base_delay_s + jitter_s)
+        propagation_delay = max(0.001, base_delay_s + jitter_s)
 
-        if self.bandwidth_bps > 0:
-            tx_delay = (pkt_bytes * 8.0) / self.bandwidth_bps
-            total_delay += tx_delay
+        tx_delay = (pkt_bytes * 8.0) / self.bandwidth_bps if self.bandwidth_bps > 0 else 0.0
+        tx_start = max(now, self._last_tx_finish_time)
+        tx_finish = tx_start + tx_delay
+        self._last_tx_finish_time = tx_finish
 
-        delivery_time = self.clock.now() + total_delay
+        delivery_time = tx_finish + propagation_delay
+        total_delay = max(0.001, delivery_time - now)
         self._packet_counter += 1
 
         in_flight = _InFlightPacket(

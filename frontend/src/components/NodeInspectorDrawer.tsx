@@ -228,31 +228,56 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
                   <tr>
                     <th>Dest</th>
                     <th>Next Hop</th>
-                    <th>Metric</th>
-                    {protocol.includes('bgp') ? <th>AS_PATH</th> : <th>Protocol</th>}
+                    <th>
+                      {protocol.includes('flood')
+                        ? 'Hop Count'
+                        : protocol.includes('bgp')
+                        ? 'AS-Path Length'
+                        : 'Cumulative Cost'}
+                    </th>
+                    {protocol.includes('bgp') ? <th>AS_PATH Sequence</th> : <th>Protocol</th>}
                   </tr>
                 </thead>
                 <tbody>
-                  {routes.map((r, i) => (
-                    <tr key={i}>
-                      <td style={{ fontWeight: 700 }}>{r.destination}</td>
-                      <td>{r.next_hop || 'DIRECT'}</td>
-                      <td style={{ color: r.metric >= 16 ? 'var(--accent-crimson)' : 'inherit' }}>
-                        {r.metric >= 9999 ? '∞ (POISON)' : r.metric}
-                      </td>
-                      {protocol.includes('bgp') ? (
-                        <td style={{ color: 'var(--accent-cobalt)', fontSize: '0.7rem' }}>
-                          [{r.as_path ? r.as_path.join(' ') : 'LOCAL'}]
+                  {routes.map((r, i) => {
+                    const metricDisplay = protocol.includes('flood')
+                      ? `${r.metric} hops`
+                      : protocol.includes('bgp')
+                      ? `${r.as_path ? r.as_path.length : 1} AS hops`
+                      : r.metric >= 9999
+                      ? '∞ (POISON)'
+                      : r.metric >= 16 && protocol.includes('dv')
+                      ? '16 (UNREACHABLE)'
+                      : `${r.metric} cost`;
+
+                    return (
+                      <tr key={i}>
+                        <td style={{ fontWeight: 700 }}>{r.destination}</td>
+                        <td>{r.next_hop || 'DIRECT'}</td>
+                        <td
+                          style={{
+                            color:
+                              r.metric >= 16 || metricDisplay.includes('∞')
+                                ? 'var(--accent-crimson)'
+                                : 'inherit',
+                          }}
+                        >
+                          {metricDisplay}
                         </td>
-                      ) : (
-                        <td>
-                          <span className={`badge-protocol badge-${protocol.slice(0, 2)}`}>
-                            {protocol.slice(0, 2).toUpperCase()}
-                          </span>
-                        </td>
-                      )}
-                    </tr>
-                  ))}
+                        {protocol.includes('bgp') ? (
+                          <td style={{ color: 'var(--accent-cobalt)', fontSize: '0.7rem' }}>
+                            [{r.as_path ? r.as_path.join(' ➔ ') : 'LOCAL'}]
+                          </td>
+                        ) : (
+                          <td>
+                            <span className={`badge-protocol badge-${protocol.slice(0, 2)}`}>
+                              {protocol.slice(0, 2).toUpperCase()}
+                            </span>
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             )}

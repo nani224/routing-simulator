@@ -6,24 +6,30 @@ interface PathTracerPanelProps {
   topology: TopologyData;
   allRoutes: Record<string, RouteEntry[]>;
   onPathChanged: (path: string[], loop: boolean) => void;
+  protocol?: string;
 }
 
 export const PathTracerPanel: React.FC<PathTracerPanelProps> = ({
   topology,
   allRoutes,
   onPathChanged,
+  protocol = 'distance_vector',
 }) => {
   const nodeIds = Object.keys(topology.nodes);
   const [srcNode, setSrcNode] = useState<string>(nodeIds[0] || 'R1');
   const [dstNode, setDstNode] = useState<string>(nodeIds[nodeIds.length - 1] || 'R6');
 
   // Compute routed path dynamically using current routing tables
-  const computePath = (src: string, dst: string): { path: string[]; hasLoop: boolean; isBlackhole: boolean } => {
+  const computePath = (
+    src: string,
+    dst: string
+  ): { path: string[]; hasLoop: boolean; isBlackhole: boolean; totalCost: number; hops: number } => {
     const visited = new Set<string>();
     const path: string[] = [src];
     let curr = src;
     let hasLoop = false;
     let isBlackhole = false;
+    let totalCost = 0;
 
     while (curr !== dst) {
       visited.add(curr);
@@ -37,6 +43,12 @@ export const PathTracerPanel: React.FC<PathTracerPanelProps> = ({
       }
 
       const next = entry.next_hop;
+      // Accumulate link cost from topology
+      const link = topology.links.find(
+        (l) => (l.source === curr && l.target === next) || (l.source === next && l.target === curr)
+      );
+      if (link) totalCost += link.cost;
+
       if (visited.has(next)) {
         // Loop detected!
         path.push(next);
@@ -53,15 +65,31 @@ export const PathTracerPanel: React.FC<PathTracerPanelProps> = ({
       }
     }
 
-    return { path, hasLoop, isBlackhole };
+    return { path, hasLoop, isBlackhole, totalCost, hops: Math.max(0, path.length - 1) };
   };
 
-  const { path, hasLoop, isBlackhole } = computePath(srcNode, dstNode);
+  const { path, hasLoop, isBlackhole, totalCost, hops } = computePath(srcNode, dstNode);
+
+  const getProtocolCriteriaLabel = () => {
+    if (protocol.includes('flood')) return 'HOP-COUNT PATH (Flooding Discovery)';
+    if (protocol.includes('bgp')) return 'SELECTED AS-PATH (Policy Path-Vector)';
+    if (protocol.includes('ls')) return 'DIJKSTRA SHORTEST PATH (Link-State SPF)';
+    return 'BELLMAN-FORD SHORTEST PATH (Distance Vector)';
+  };
+
+  const getMetricSummary = () => {
+    if (protocol.includes('flood')) return `Hop Count: ${hops} hops`;
+    if (protocol.includes('bgp')) {
+      const asSequence = path.map((nid) => topology.nodes[nid]?.as_number || 100);
+      return `AS-Path: [${asSequence.join(' ➔ ')}] (${asSequence.length} AS hops)`;
+    }
+    return `Cumulative Metric Cost: ${totalCost}`;
+  };
 
   // Notify canvas of active path and loop status
   React.useEffect(() => {
     onPathChanged(path, hasLoop);
-  }, [srcNode, dstNode, allRoutes]);
+  }, [path, hasLoop, onPathChanged]);
 
   return (
     <div
@@ -170,14 +198,22 @@ export const PathTracerPanel: React.FC<PathTracerPanelProps> = ({
           ) : (
             <>
               <CheckCircle2 size={13} color="var(--accent-verdigris)" />
-              <span style={{ color: 'var(--accent-verdigris)', fontWeight: 800 }}>OPTIMAL ROUTED PATH</span>
+              <span style={{ color: 'var(--accent-verdigris)', fontWeight: 800 }}>
+                {getProtocolCriteriaLabel()}
+              </span>
             </>
           )}
         </div>
 
-        <div style={{ color: 'var(--text-primary)', fontWeight: 600 }}>
+        <div style={{ color: 'var(--text-primary)', fontWeight: 600, marginBottom: '0.3rem' }}>
           {path.join(' ➔ ')}
         </div>
+
+        {!hasLoop && !isBlackhole && (
+          <div style={{ fontSize: '0.68rem', color: 'var(--text-secondary)' }}>
+            {getMetricSummary()}
+          </div>
+        )}
       </div>
     </div>
   );

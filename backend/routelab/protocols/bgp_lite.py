@@ -78,6 +78,8 @@ class BGPLiteProtocol(RoutingProtocol):
 
         # Cached active neighbors
         self._neighbor_costs: dict[str, float] = {}
+        # Track advertised destinations per peer: peer_id -> set of advertised dests
+        self._advertised_to_peer: dict[str, set[str]] = {}
 
     def on_start(self, ctx: ProtocolContext) -> None:
         """Initialize BGP speaker, advertise local network prefix to all neighbors."""
@@ -179,6 +181,7 @@ class BGPLiteProtocol(RoutingProtocol):
         if not up:
             # Neighbor disconnected: purge its RIB-In entries and withdraw
             self._neighbor_costs.pop(nbr, None)
+            self._advertised_to_peer.pop(nbr, None)
             if nbr in self.rib_in:
                 del self.rib_in[nbr]
                 routes_modified = self._recompute_loc_rib(ctx)
@@ -269,14 +272,16 @@ class BGPLiteProtocol(RoutingProtocol):
                 self._send_updates_to_peer(ctx, nbr.node_id)
 
     def _send_updates_to_peer(self, ctx: ProtocolContext, peer_id: str) -> None:
-        """Format and send UPDATE containing valid advertisements to a specific peer."""
+        """Format and send UPDATE containing advertisements and withdrawals to a peer."""
         advertisements: list[dict[str, Any]] = []
+        currently_advertised: set[str] = set()
 
         for dst, path in self.loc_rib.items():
             # Split-horizon check: do not advertise route back to the next-hop it came from
             if path.next_hop == peer_id and dst != ctx.node_id:
                 continue
 
+            currently_advertised.add(dst)
             advertisements.append(
                 {
                     "destination": dst,
@@ -285,13 +290,18 @@ class BGPLiteProtocol(RoutingProtocol):
                 }
             )
 
-        if advertisements:
+        previously_advertised = self._advertised_to_peer.get(peer_id, set())
+        withdrawn = list(previously_advertised - currently_advertised)
+        self._advertised_to_peer[peer_id] = currently_advertised
+
+        if advertisements or withdrawn:
             ctx.send(
                 peer_id,
                 {
                     "type": "BGP_UPDATE",
+                    "sender": ctx.node_id,
                     "advertisements": advertisements,
-                    "withdrawals": [],
+                    "withdrawals": withdrawn,
                 },
             )
 
