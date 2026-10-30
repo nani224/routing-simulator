@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import type { RouteEntry, TopologyData } from '../types';
-import { Navigation, AlertOctagon, CheckCircle2, ArrowRight } from 'lucide-react';
+import { Navigation, AlertOctagon, CheckCircle2, ArrowRight, Send } from 'lucide-react';
 
 interface PathTracerPanelProps {
   topology: TopologyData;
   allRoutes: Record<string, RouteEntry[]>;
   onPathChanged: (path: string[], loop: boolean) => void;
+  onSendProbePacket?: (path: string[]) => void;
   protocol?: string;
 }
 
@@ -13,6 +14,7 @@ export const PathTracerPanel: React.FC<PathTracerPanelProps> = ({
   topology,
   allRoutes,
   onPathChanged,
+  onSendProbePacket,
   protocol = 'distance_vector',
 }) => {
   const nodeIds = Object.keys(topology.nodes);
@@ -216,6 +218,29 @@ export const PathTracerPanel: React.FC<PathTracerPanelProps> = ({
         <div style={{ color: 'var(--text-primary)', fontWeight: 600, marginBottom: '0.3rem' }}>
           {path.join(' ➔ ')}
         </div>
+
+        {!hasLoop && !isBlackhole && path.length > 1 && onSendProbePacket && (
+          <button
+            onClick={() => onSendProbePacket(path)}
+            className="btn-brass"
+            style={{
+              marginTop: '0.4rem',
+              width: '100%',
+              padding: '0.35rem 0.6rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.4rem',
+              fontSize: '0.72rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+            }}
+            title="Dispatch an authentic live probe packet along this routed path"
+          >
+            <Send size={12} />
+            Send Live Probe Packet ({path[0]} ➔ {path[path.length - 1]})
+          </button>
+        )}
 
         {!hasLoop && !isBlackhole && (
           <div style={{ fontSize: '0.68rem', color: 'var(--text-secondary)' }}>

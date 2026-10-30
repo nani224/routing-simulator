@@ -12,6 +12,7 @@ import {
   Play,
   Pause,
   RotateCcw,
+  Repeat,
   Trophy,
   CheckCircle2,
   Zap,
@@ -48,8 +49,10 @@ export const CompareWorkbench: React.FC<CompareWorkbenchProps> = ({
   const [isComparing, setIsComparing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Playback & Animation State
+  // Playback & Animation State (Normalized 10.0s Visual Presentation Timeline)
+  const TOTAL_VISUAL_RACE_S = 10.0;
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
+  const [isLooping, setIsLooping] = useState<boolean>(true);
   const [playbackTime, setPlaybackTime] = useState<number>(0);
   const [playbackSpeed, setPlaybackSpeed] = useState<number>(1.0);
 
@@ -59,23 +62,20 @@ export const CompareWorkbench: React.FC<CompareWorkbenchProps> = ({
   const animFrameId = useRef<number | null>(null);
   const lastWallTimeRef = useRef<number>(performance.now());
 
-  // Determine max simulation time from convergence times and traces
-  const maxSimTime = useMemo(() => {
-    if (!report) return 2.0;
-    const tA = report.metrics[protoA]?.convergence_time_s || 1.0;
-    const tB = report.metrics[protoB]?.convergence_time_s || 1.0;
-    let maxTrace = Math.max(tA, tB);
+  // Calculate maximum virtual timestamp recorded during the simulation
+  const simMaxTs = useMemo(() => {
+    if (!report) return 0.05;
+    let maxT = 0.001;
+    for (const traces of Object.values(report.packet_traces || {})) {
+      for (const t of traces) {
+        if (t.type === 'packet_sent' && t.ts > maxT) {
+          maxT = t.ts;
+        }
+      }
+    }
+    return maxT;
+  }, [report]);
 
-    const tracesA = report.packet_traces[protoA] || [];
-    const tracesB = report.packet_traces[protoB] || [];
-    if (tracesA.length > 0) {
-      maxTrace = Math.max(maxTrace, tracesA[tracesA.length - 1].ts);
-    }
-    if (tracesB.length > 0) {
-      maxTrace = Math.max(maxTrace, tracesB[tracesB.length - 1].ts);
-    }
-    return Math.max(1.0, Number((maxTrace + 0.35).toFixed(3)));
-  }, [report, protoA, protoB]);
 
   // Run Benchmark & fetch packet traces
   const handleRunComparison = async () => {
@@ -112,12 +112,14 @@ export const CompareWorkbench: React.FC<CompareWorkbenchProps> = ({
       lastWallTimeRef.current = wallNow;
 
       setPlaybackTime((prev) => {
-        // Visual playback pace: 1 simulation second takes ~3 real seconds at 1x
-        const simDelta = (deltaSec / 3.0) * playbackSpeed;
-        const next = prev + simDelta;
-        if (next >= maxSimTime) {
-          setIsPlaying(false);
-          return maxSimTime;
+        const next = prev + deltaSec * playbackSpeed;
+        if (next >= TOTAL_VISUAL_RACE_S) {
+          if (isLooping) {
+            return 0.0;
+          } else {
+            setIsPlaying(false);
+            return TOTAL_VISUAL_RACE_S;
+          }
         }
         return next;
       });
@@ -129,7 +131,7 @@ export const CompareWorkbench: React.FC<CompareWorkbenchProps> = ({
     return () => {
       if (animFrameId.current) cancelAnimationFrame(animFrameId.current);
     };
-  }, [isPlaying, playbackSpeed, maxSimTime]);
+  }, [isPlaying, isLooping, playbackSpeed]);
 
   // Helper: map link lookup for latency
   const linkLatencyMap = useMemo(() => {
@@ -141,7 +143,7 @@ export const CompareWorkbench: React.FC<CompareWorkbenchProps> = ({
     return map;
   }, [topology.links]);
 
-  // Compute active couriers at playbackTime for a given protocol
+  // Compute active couriers at playbackTime for a given protocol using mapped timeline
   const getActiveCouriers = (
     proto: string,
     traces: PacketTraceEvent[],
@@ -151,11 +153,24 @@ export const CompareWorkbench: React.FC<CompareWorkbenchProps> = ({
     let deliveredCount = 0;
     let inFlightCount = 0;
 
-    for (const ev of traces) {
-      if (ev.type !== 'packet_sent') continue;
+    const sentEvents = traces.filter((ev) => ev.type === 'packet_sent');
+    if (sentEvents.length === 0) {
+      return { couriers, deliveredCount: 0, inFlightCount: 0 };
+    }
+
+    const simSpan = Math.max(0.001, simMaxTs);
+    // Spread emissions gracefully over the first 7.5 seconds of the 10.0s race
+    const spreadDuration = Math.max(2.0, TOTAL_VISUAL_RACE_S - 2.5);
+
+    for (let i = 0; i < sentEvents.length; i++) {
+      const ev = sentEvents[i];
       const key = `${ev.src}->${ev.dst}`;
-      const transitDuration = Math.max(0.12, (linkLatencyMap.get(key) || 0.05) * 2.5);
-      const startT = ev.ts;
+      const latencyMs = (linkLatencyMap.get(key) || 0.02) * 1000;
+      // Visually, each packet travels across the link in 1.1s to 1.5s
+      const transitDuration = 1.1 + Math.min(0.5, (latencyMs / 100) * 0.4);
+
+      // Causal visual start time mapped from algorithm's recorded microsecond timestamps
+      const startT = (ev.ts / simSpan) * spreadDuration;
       const endT = startT + transitDuration;
 
       if (playbackTime < startT) {
@@ -169,7 +184,7 @@ export const CompareWorkbench: React.FC<CompareWorkbenchProps> = ({
         const dstPos = coords[ev.dst];
         if (srcPos && dstPos) {
           couriers.push({
-            id: `pkt-${ev.seq}`,
+            id: `pkt-${ev.seq}-${i}`,
             src: ev.src,
             dst: ev.dst,
             x: srcPos.x + (dstPos.x - srcPos.x) * p,
@@ -369,15 +384,19 @@ export const CompareWorkbench: React.FC<CompareWorkbenchProps> = ({
 
     // 5. Convergence Halo / Celebration Ring if already converged at playbackTime
     const metrics = report?.metrics[protoName];
-    if (metrics && playbackTime >= metrics.convergence_time_s) {
-      ctx.fillStyle = 'rgba(46, 196, 182, 0.12)';
+    const simSpan = Math.max(0.001, simMaxTs);
+    const spreadDuration = Math.max(2.0, TOTAL_VISUAL_RACE_S - 2.5);
+    const visualConvTime = metrics ? Math.min(TOTAL_VISUAL_RACE_S - 0.5, (metrics.convergence_time_s / simSpan) * spreadDuration) : TOTAL_VISUAL_RACE_S;
+
+    if (metrics && playbackTime >= visualConvTime) {
+      ctx.fillStyle = 'rgba(46, 196, 182, 0.16)';
       ctx.fillRect(0, height - 28, width, 28);
       ctx.fillStyle = '#2ec4b6';
       ctx.font = 'bold 10px monospace';
       ctx.textAlign = 'right';
       ctx.textBaseline = 'middle';
       ctx.fillText(
-        `✓ CONVERGED at ${metrics.convergence_time_s.toFixed(3)}s`,
+        `✓ CONVERGED (${metrics.convergence_time_s.toFixed(3)}s simulation time)`,
         width - 12,
         height - 14
       );
@@ -695,7 +714,7 @@ export const CompareWorkbench: React.FC<CompareWorkbenchProps> = ({
                   <span style={{ color: 'var(--text-secondary)' }}>
                     Delivered: <strong>{statsA.deliveredCount}</strong> / {tracesA.filter((t) => t.type === 'packet_sent').length}
                   </span>
-                  {resA && playbackTime >= resA.convergence_time_s ? (
+                  {resA && playbackTime >= (resA.convergence_time_s / Math.max(0.001, simMaxTs)) * (TOTAL_VISUAL_RACE_S - 2.5) ? (
                     <span
                       style={{
                         padding: '0.15rem 0.4rem',
@@ -809,7 +828,7 @@ export const CompareWorkbench: React.FC<CompareWorkbenchProps> = ({
                   <span style={{ color: 'var(--text-secondary)' }}>
                     Delivered: <strong>{statsB.deliveredCount}</strong> / {tracesB.filter((t) => t.type === 'packet_sent').length}
                   </span>
-                  {resB && playbackTime >= resB.convergence_time_s ? (
+                  {resB && playbackTime >= (resB.convergence_time_s / Math.max(0.001, simMaxTs)) * (TOTAL_VISUAL_RACE_S - 2.5) ? (
                     <span
                       style={{
                         padding: '0.15rem 0.4rem',
@@ -880,7 +899,16 @@ export const CompareWorkbench: React.FC<CompareWorkbenchProps> = ({
             >
               <button
                 className="btn-brass"
-                onClick={() => setIsPlaying(!isPlaying)}
+                onClick={() => {
+                  if (!isPlaying && playbackTime >= TOTAL_VISUAL_RACE_S) {
+                    setPlaybackTime(0);
+                    setIsPlaying(true);
+                    lastWallTimeRef.current = performance.now();
+                  } else {
+                    setIsPlaying(!isPlaying);
+                    lastWallTimeRef.current = performance.now();
+                  }
+                }}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -913,6 +941,22 @@ export const CompareWorkbench: React.FC<CompareWorkbenchProps> = ({
                 <RotateCcw size={14} />
                 Replay
               </button>
+              <button
+                className={`btn-brass ${isLooping ? 'btn-brass-primary' : ''}`}
+                onClick={() => setIsLooping(!isLooping)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  padding: '0.4rem 0.7rem',
+                  fontSize: '0.78rem',
+                  fontWeight: 700,
+                }}
+                title="Toggle continuous looping of the packet race"
+              >
+                <Repeat size={13} />
+                {isLooping ? 'Loop: ON' : 'Loop: OFF'}
+              </button>
 
               {/* Time Scrubber */}
               <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
@@ -920,8 +964,8 @@ export const CompareWorkbench: React.FC<CompareWorkbenchProps> = ({
                 <input
                   type="range"
                   min="0"
-                  max={maxSimTime}
-                  step="0.005"
+                  max={TOTAL_VISUAL_RACE_S}
+                  step="0.05"
                   value={playbackTime}
                   onChange={(e) => {
                     setPlaybackTime(parseFloat(e.target.value));
@@ -943,7 +987,7 @@ export const CompareWorkbench: React.FC<CompareWorkbenchProps> = ({
                     color: 'var(--text-primary)',
                   }}
                 >
-                  {playbackTime.toFixed(3)}s / {maxSimTime.toFixed(3)}s
+                  {playbackTime.toFixed(2)}s / {TOTAL_VISUAL_RACE_S.toFixed(1)}s
                 </span>
               </div>
 

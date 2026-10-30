@@ -277,7 +277,10 @@ export const TopologyCanvas: React.FC<TopologyCanvasProps> = ({
         const curY = p1.y + (p2.y - p1.y) * pkt.progress;
 
         ctx.save();
-        ctx.fillStyle = pkt.protocol.includes('dv')
+        const isProbe = pkt.payloadType === 'probe';
+        ctx.fillStyle = isProbe
+          ? '#E0A96D'
+          : pkt.protocol.includes('dv')
           ? '#C87533'
           : pkt.protocol.includes('ls')
           ? '#3D8B7A'
@@ -286,17 +289,29 @@ export const TopologyCanvas: React.FC<TopologyCanvasProps> = ({
           : '#D9822B';
 
         ctx.shadowColor = ctx.fillStyle;
-        ctx.shadowBlur = 8;
+        ctx.shadowBlur = isProbe ? 14 : 9;
         ctx.beginPath();
-        ctx.arc(curX, curY, 5, 0, Math.PI * 2);
+        ctx.arc(curX, curY, isProbe ? 6.5 : 5, 0, Math.PI * 2);
         ctx.fill();
 
         // Subtle outer pulse ring
         ctx.strokeStyle = ctx.fillStyle;
-        ctx.lineWidth = 1.2;
+        ctx.lineWidth = isProbe ? 2 : 1.2;
         ctx.beginPath();
-        ctx.arc(curX, curY, 8, 0, Math.PI * 2);
+        ctx.arc(curX, curY, isProbe ? 11 : 8, 0, Math.PI * 2);
         ctx.stroke();
+
+        if (isProbe) {
+          // Trailing motion spark for live probe packet
+          const sparkP = Math.max(0, pkt.progress - 0.12);
+          const sx = p1.x + (p2.x - p1.x) * sparkP;
+          const sy = p1.y + (p2.y - p1.y) * sparkP;
+          ctx.beginPath();
+          ctx.arc(sx, sy, 3.5, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(224, 169, 109, 0.6)';
+          ctx.fill();
+        }
+
         ctx.restore();
       }
 

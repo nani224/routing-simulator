@@ -93,6 +93,8 @@ class RouterNode(ProtocolContext):
         self._last_table_hash: int = 0
         self._known_routes: dict[str, tuple[str, float]] = {}
         self.on_table_changed: Callable[[], None] | None = None
+        self.on_packet_sent: Callable[[str, str, str, int], None] | None = None
+        self.on_packet_delivered: Callable[[str, str, str, int], None] | None = None
 
     @property
     def node_id(self) -> str:
@@ -205,6 +207,9 @@ class RouterNode(ProtocolContext):
                 },
             )
 
+        if self.on_packet_sent is not None:
+            self.on_packet_sent(self.node_id, nbr, pkt.proto, self._seq)
+
         # Transmit via LinkEmulator
         link.transmit(pkt, delivery_callback=self._deliver_to_nbr_callback(nbr))
 
@@ -263,6 +268,9 @@ class RouterNode(ProtocolContext):
                     "seq": pkt.seq,
                 },
             )
+
+        if self.on_packet_delivered is not None:
+            self.on_packet_delivered(pkt.src, self.node_id, pkt.proto, pkt.seq)
 
         if self._runner is not None:
             self._runner.on_message(pkt.src, pkt.payload)

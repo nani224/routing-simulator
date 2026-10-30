@@ -78,6 +78,7 @@ export interface PacketCourier {
   speed: number;
   protocol: string;
   payloadType: string;
+  remainingHops?: string[];
 }
 
 export interface ComparisonMetrics {

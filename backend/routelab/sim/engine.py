@@ -119,6 +119,8 @@ class SimulationEngine:
                 protocol_inst = factory_no_args()
             node.set_protocol(protocol_inst)
             node.on_table_changed = self._on_node_table_changed
+            node.on_packet_sent = self._on_node_packet_sent
+            node.on_packet_delivered = self._on_node_packet_delivered
             self.nodes[node_id] = node
 
         # 2. Instantiate and wire link emulators
@@ -191,6 +193,30 @@ class SimulationEngine:
         """Invoked when any node's routing table mutates."""
         self._last_mutation_time = self.clock.now()
         self._is_converged = False
+
+    def _on_node_packet_sent(self, src: str, dst: str, proto: str, seq: int) -> None:
+        self._broadcast_delta(
+            {
+                "type": "packet",
+                "event": "PACKET_SENT",
+                "src": src,
+                "dst": dst,
+                "proto": proto,
+                "seq": seq,
+            }
+        )
+
+    def _on_node_packet_delivered(self, src: str, dst: str, proto: str, seq: int) -> None:
+        self._broadcast_delta(
+            {
+                "type": "packet",
+                "event": "PACKET_DELIVERED",
+                "src": src,
+                "dst": dst,
+                "proto": proto,
+                "seq": seq,
+            }
+        )
 
     def _trigger_event(self, ev: ScheduledSimulationEvent) -> None:
         if not ev.executed:

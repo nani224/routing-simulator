@@ -438,6 +438,17 @@ export const App: React.FC = () => {
           const nextProg = pkt.progress + pkt.speed * dt * speed;
           if (nextProg < 1.0) {
             nextPackets.push({ ...pkt, progress: nextProg });
+          } else if (pkt.remainingHops && pkt.remainingHops.length > 0) {
+            const nextDst = pkt.remainingHops[0];
+            nextPackets.push({
+              ...pkt,
+              id: `probe-${pkt.dst}->${nextDst}-${Date.now()}`,
+              src: pkt.dst,
+              dst: nextDst,
+              progress: 0.0,
+              speed: 1.2,
+              remainingHops: pkt.remainingHops.slice(1),
+            });
           }
         }
         return nextPackets;
@@ -706,6 +717,27 @@ export const App: React.FC = () => {
     setLoopDetected(loop);
   }, []);
 
+  const handleSendProbePacket = useCallback((pathNodes: string[]) => {
+    if (pathNodes.length < 2) return;
+    playChime('click');
+    const firstHop = pathNodes[0];
+    const secondHop = pathNodes[1];
+    const remaining = pathNodes.slice(2);
+    setPackets((prev) => [
+      ...prev,
+      {
+        id: `probe-${firstHop}->${secondHop}-${Date.now()}`,
+        src: firstHop,
+        dst: secondHop,
+        progress: 0.0,
+        speed: 1.2,
+        protocol: currentProtocol,
+        payloadType: 'probe',
+        remainingHops: remaining,
+      },
+    ]);
+  }, [playChime, currentProtocol]);
+
   const selectedNodeTelemetry = selectedNode ? nodeTelemetry[selectedNode] : null;
 
   return (
@@ -777,6 +809,7 @@ export const App: React.FC = () => {
           topology={topology}
           allRoutes={allRoutes}
           onPathChanged={handlePathChanged}
+          onSendProbePacket={handleSendProbePacket}
           protocol={currentProtocol}
         />
 
