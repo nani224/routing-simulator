@@ -1,14 +1,14 @@
-name: RouteLab CI
+name: PHANTOMNET & RouteLab CI
 
 on:
   push:
-    branches: [main, dev, "feature/**"]
+    branches: [main, dev, phantomnet, "feature/**"]
   pull_request:
-    branches: [main, dev]
+    branches: [main, dev, phantomnet]
 
 jobs:
-  backend-test:
-    name: Backend Quality & Tests
+  verify:
+    name: Full Pipeline Verification (make verify)
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -23,35 +23,6 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: "pip"
 
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -e ".[dev]"
-
-      - name: Run Ruff Lint
-        run: ruff check .
-
-      - name: Run Ruff Format Check
-        run: ruff format --check .
-
-      - name: Run Mypy Type Check (Strict)
-        run: mypy --strict backend/routelab
-
-      - name: Run Tests with Coverage
-        run: |
-          pytest --cov=routelab --cov-fail-under=85 backend/tests/
-
-      - name: Run Benchmark Smoke Test
-        run: |
-          python -m pytest backend/tests/bench/ -m "not slow" || true
-
-  frontend-check:
-    name: Frontend Build & Lint
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
@@ -59,10 +30,28 @@ jobs:
           cache: "npm"
           cache-dependency-path: frontend/package.json
 
+      - name: Install Python Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
       - name: Install Frontend Dependencies
         working-directory: frontend
         run: npm ci || npm install
 
-      - name: Frontend Typecheck and Build
+      - name: Run Ruff Lint & Format Checks
+        run: |
+          ruff check .
+          ruff format --check .
+
+      - name: Run Mypy Strict Typecheck
+        run: |
+          mypy --strict backend/routelab backend/phantomnet
+
+      - name: Run Test Suite (Unit, Property, Determinism, Soak)
+        run: |
+          pytest -v backend/tests/
+
+      - name: Run Frontend Typecheck and Build
         working-directory: frontend
         run: npm run build

@@ -1,4 +1,4 @@
-.PHONY: all dev test check bench clean install lint format typecheck
+.PHONY: all dev test check verify bench clean install lint format typecheck
 
 VENV = .venv
 ifeq ($(OS),Windows_NT)
@@ -15,7 +15,7 @@ else
 	PYTEST = $(VENV)/bin/pytest
 endif
 
-all: check
+all: verify
 
 install:
 	$(PYTHON) -m pip install --upgrade pip
@@ -27,18 +27,24 @@ dev:
 
 lint:
 	$(RUFF) check .
+	$(RUFF) format --check .
 
 format:
 	$(RUFF) format .
 
 typecheck:
-	$(MYPY) --strict backend/routelab
+	$(MYPY) --strict backend/routelab backend/phantomnet
 
 test:
-	$(PYTEST) -v --cov=routelab --cov-report=term-missing --cov-report=html:docs/results/coverage_html backend/tests/
+	$(PYTEST) -v backend/tests/
 
-check: lint typecheck test
+test-phantomnet:
+	$(PYTEST) -v backend/tests/phantomnet/
+
+verify: lint typecheck test
 	cd frontend && npm run build
+
+check: verify
 
 bench:
 	$(PYTHON) -m pytest backend/tests/bench/ -v -s

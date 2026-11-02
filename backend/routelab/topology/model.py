@@ -109,9 +109,9 @@ class Topology:
             topo.add_link(TopologyLink.from_dict(l_data))
         return topo
 
-    def to_networkx(self) -> nx.Graph:
+    def to_networkx(self) -> nx.Graph[Any]:
         """Convert topology to a NetworkX Graph for shortest-path oracle validation."""
-        g = nx.Graph()
+        g: nx.Graph[Any] = nx.Graph()
         for node_id, node in self.nodes.items():
             g.add_node(
                 node_id,
@@ -131,7 +131,7 @@ class Topology:
         return g
 
     @classmethod
-    def from_networkx(cls, g: nx.Graph, name: str = "GraphML Topology") -> Topology:
+    def from_networkx(cls, g: nx.Graph[Any], name: str = "GraphML Topology") -> Topology:
         """Construct Topology from NetworkX Graph."""
         topo = cls(name=name)
         try:

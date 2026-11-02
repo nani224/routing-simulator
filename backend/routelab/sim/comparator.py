@@ -123,16 +123,23 @@ class CompareEngine:
 
             # Capture packet events for animated courier visualization
             traces: list[dict[str, Any]] = []
-            for ev in store.get_all():
-                if ev.event_type in (EventType.PACKET_SENT, EventType.PACKET_DELIVERED, EventType.PACKET_DROPPED):
-                    traces.append({
-                        "seq": ev.seq,
-                        "ts": round(ev.timestamp, 4),
-                        "type": ev.event_type.value,
-                        "src": ev.data.get("src", ev.source),
-                        "dst": ev.data.get("dst", ""),
-                        "proto": ev.data.get("proto", proto_name),
-                    })
+            for sim_ev in store.get_all():
+                pkt_types = (
+                    EventType.PACKET_SENT,
+                    EventType.PACKET_DELIVERED,
+                    EventType.PACKET_DROPPED,
+                )
+                if sim_ev.event_type in pkt_types:
+                    traces.append(
+                        {
+                            "seq": sim_ev.seq,
+                            "ts": round(sim_ev.timestamp, 4),
+                            "type": sim_ev.event_type.value,
+                            "src": sim_ev.data.get("src", sim_ev.source),
+                            "dst": sim_ev.data.get("dst", ""),
+                            "proto": sim_ev.data.get("proto", proto_name),
+                        }
+                    )
             packet_traces[proto_name] = traces
 
             await engine.stop()

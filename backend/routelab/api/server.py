@@ -7,6 +7,7 @@ from collections.abc import AsyncIterator
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from phantomnet.api import router as phantomnet_router
 
 from routelab.api.models import HealthResponse
 from routelab.api.routes_plugins import router as plugins_router
@@ -58,6 +59,9 @@ def create_app() -> FastAPI:
 
     # Mount WebSocket router
     app.include_router(ws_router)
+
+    # Mount PHANTOMNET event spine endpoints (/ws/events and /api/replay/{run_id})
+    app.include_router(phantomnet_router)
 
     return app
 

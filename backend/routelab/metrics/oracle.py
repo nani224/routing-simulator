@@ -51,9 +51,12 @@ class RoutingOracle:
 
         for n in g.nodes():
             try:
-                oracle_distances[n], oracle_paths[n] = nx.single_source_dijkstra(
-                    g, source=n, weight="weight"
-                )
+                raw_dist, raw_paths = nx.single_source_dijkstra(g, source=n, weight="weight")
+                if isinstance(raw_dist, dict) and isinstance(raw_paths, dict):
+                    oracle_distances[str(n)] = {str(k): float(v) for k, v in raw_dist.items()}
+                    oracle_paths[str(n)] = {
+                        str(k): [str(p) for p in v] for k, v in raw_paths.items()
+                    }
             except nx.NetworkXError:
                 oracle_distances[n] = {n: 0.0}
                 oracle_paths[n] = {n: [n]}
