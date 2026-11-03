@@ -27,3 +27,4 @@ We build `PhantomEventBus` (`backend/phantomnet/bus.py`) by composing RouteLab's
 - **Positive:** Maximum code reuse of tested range-query and sliding-window logic without reinventing basic indexing.
 - **Positive:** Strict separation between RouteLab's internal simulation events and PHANTOMNET's 13 canonical spine event kinds.
 - **Positive:** Enables identical replay behavior whether events originate from live sockets, RouteLab, or synthetic traces.
+

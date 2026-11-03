@@ -20,6 +20,7 @@ Every custom algorithm inherits from `routelab.plugins.interface.RoutingProtocol
 from typing import Any
 from routelab.plugins.interface import ProtocolContext, RouteEntry, RoutingProtocol
 
+
 class MyCustomProtocol(RoutingProtocol):
     def on_start(self, ctx: ProtocolContext) -> None:
         """Invoked when the node initializes. Broadcast initial vectors or schedule timers."""
@@ -87,6 +88,7 @@ Here is a working implementation of a gossip-based routing protocol:
 from typing import Any
 from routelab.plugins.interface import NeighborInfo, ProtocolContext, RouteEntry, RoutingProtocol
 
+
 class GossipRoutingProtocol(RoutingProtocol):
     def __init__(self, fanout: int = 2) -> None:
         self.fanout = fanout
@@ -100,7 +102,7 @@ class GossipRoutingProtocol(RoutingProtocol):
     def on_message(self, src: str, payload: dict[str, Any]) -> None:
         if self.ctx is None:
             return
-        
+
         updated = False
         advertised = payload.get("routes", {})
         for dest, metric in advertised.items():
@@ -153,6 +155,7 @@ from routelab.core.clock import VirtualClock
 from routelab.sim.engine import SimulationEngine
 from routelab.topology.generators import generate_scale_free
 from routelab.metrics.oracle import NetworkXOracle
+
 
 async def test_my_plugin():
     topo = generate_scale_free(num_nodes=10, m=2)

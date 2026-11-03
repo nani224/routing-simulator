@@ -108,3 +108,4 @@ Every experiment and synthetic episode is parameterized by an integer `seed`.
   $$\text{Hash}_{\text{run}} = \text{SHA256}(\text{event}_1 \parallel \text{event}_2 \parallel \dots \parallel \text{event}_N)$$
 - Property and regression tests enforce:
   $$\text{Hash}_{\text{run}}(S) = \text{Hash}_{\text{run}}(S)$$
+

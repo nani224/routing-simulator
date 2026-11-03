@@ -20,3 +20,4 @@ After each task: update .agent/STATE.md (done / evidence file paths / open issue
 DEFINITION OF DONE for a phase: `make verify` green, evidence artifacts generated under /evidence, STATE.md updated, a screen recording of the phase's UI captured by Playwright.
 
 SKILLS: before installing any skill from GitHub, read its source, pin the commit hash, record it in /docs/skills.md. Prefer anthropics/skills (frontend-design, webapp-testing). Reject anything that runs unexplained shell commands or fetches remote code.
+
