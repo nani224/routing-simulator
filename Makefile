@@ -1,6 +1,6 @@
-.PHONY: all dev test check verify bench clean install lint format typecheck
+.PHONY: all dev test check verify bench clean install lint format typecheck evidence
 
-VENV = .venv
+VENV = $(CURDIR)/.venv
 ifeq ($(OS),Windows_NT)
 	PYTHON = $(VENV)/Scripts/python.exe
 	PIP = $(VENV)/Scripts/pip.exe
@@ -48,6 +48,9 @@ check: verify
 
 bench:
 	$(PYTHON) -m pytest backend/tests/bench/ -v -s
+
+evidence:
+	$(PYTHON) scripts/generate_evidence.py
 
 clean:
 	rm -rf .pytest_cache .coverage htmlcov .mypy_cache .ruff_cache build dist *.egg-info

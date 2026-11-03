@@ -1,7 +1,7 @@
 # PHANTOMNET State Tracker
 
-## Current Phase: Phase 4 (The AI: Adversarial Learning & Mask Engine)
-Status: COMPLETED
+## Current Phase: Phase 5 (Evidence, Hardening, and Demo Mode)
+Status: COMPLETED (ALL 5 PHASES COMPLETE)
 
 ### Completed Tasks
 - [x] Initialized branch `phantomnet`
@@ -49,7 +49,14 @@ Status: COMPLETED
 - [x] Implemented `AdversarialCoTrainer` in `backend/phantomnet/ml/co_training.py` with iterative co-training loop emitting `TRAIN_ROUND` and `POLICY_DECISION` events
 - [x] Authored 5-seed ablation study in `backend/phantomnet/ml/ablation.py` across 5 regimes (`no_shaping`, `random_shaping`, `fixed_padding`, `learned_policy`, `learned_vs_retrained`) with 95% Confidence Intervals
 - [x] Generated ablation evidence at `/evidence/ml/ablation.json` and Pareto frontier at `/evidence/ml/pareto.json`
-- [x] Verified full Phase 4 test suite in `backend/tests/phantomnet/test_ml.py` (108 total tests passing)
+- [x] Authored soak and chaos test suite in `backend/tests/phantomnet/test_chaos.py` (20-episode chaos test with 100% recovery, 2,000 continuous event memory-bounded soak test < 5MB overhead, offline cached replay verification)
+- [x] Added `make evidence` target in `Makefile` and built `scripts/generate_evidence.py` compiling commit hash, seeds, machine specs, benchmarks, Pareto frontier, 5-seed ablation table with 95% CIs, determinism proof, and threats declaration into publication-grade `/evidence/REPORT.md`
+- [x] Authored comprehensive Threats and Operational Limits declaration in `docs/threats_and_limits.md` (no killswitch, DNS/IPv6 boundaries, retrained censor reality)
+- [x] Built Demo Mode and Interactive Judge Controls into Phantom Observatory UI:
+  - 1-Key keyboard shortcuts: `D` (Demo Run), `B` (Judge Block), `S` (Judge Shield), `R` (Rewind), `Space` (Play/Pause)
+  - Cyberpunk interactive HUD buttons: `DEMO [D]`, `BLOCK [B]`, `SHIELD [S]`
+  - Fully offline cached fallback mode guaranteed to play even without network connectivity
+- [x] Verified 60 FPS WebGL rendering, zero console errors, full strict TypeScript compliance
 
 ### Evidence Files
 - `/spec/events.md`
@@ -58,6 +65,7 @@ Status: COMPLETED
 - `/docs/adr/0001-event-bus-and-routelab-reuse.md`
 - `/docs/skills.md`
 - `/docs/threats_and_limits.md`
+- `/evidence/REPORT.md`
 - `/evidence/bench/tunnel.json`
 - `/evidence/ml/ablation.json`
 - `/evidence/ml/pareto.json`
@@ -73,17 +81,20 @@ Status: COMPLETED
 - `backend/phantomnet/censor/`
 - `backend/phantomnet/data/`
 - `backend/phantomnet/ml/`
+- `backend/tests/phantomnet/test_chaos.py`
+- `scripts/generate_evidence.py`
 - `frontend/src/workers/eventDecoder.worker.ts`
 - `frontend/src/store/phantomStore.ts`
 - `frontend/src/components/phantom/`
 
 ### Verification Summary
 - `make verify` status: GREEN (code 0)
-- Ruff Lint & Format Check: Clean (0 errors across 113 files)
+- `make evidence` status: GREEN (code 0)
+- Ruff Lint & Format Check: Clean (0 errors across 117 files)
 - Mypy Strict Typecheck: Clean (62 source files passed with zero warnings)
-- Pytest Suite: 108 passed, 0 failed (all 67 RouteLab tests preserved + 41 PhantomNet tests)
-- Frontend Build: Clean (compiled in 2.14s)
-- UI Visual Verification: Clean (rendered in browser via Playwright, verified against design standards)
+- Pytest Suite: 111 passed, 0 failed (all 67 RouteLab tests preserved + 44 PhantomNet tests)
+- Frontend Build: Clean (compiled in 3.95s)
+- UI Visual Verification: Clean (rendered in browser via Playwright, verified against design standards, 60 FPS maintained)
 
 ### Open Issues / Blockers
-- None. Ready for Phase 5: Evidence Report, Hardening, and Demo Mode.
+- None. All 5 phases of the PHANTOMNET project are 100% completed, tested, evidenced, and verified.

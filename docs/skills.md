@@ -17,3 +17,4 @@ This document tracks verified skills installed and referenced according to `AGEN
 3. **`modern-web-guidance`**
    - **Path**: `C:\Users\HP\.gemini\config\skills\modern-web-guidance\SKILL.md`
    - **Purpose**: Container queries, modern layout APIs, OKLCH color dynamics.
+

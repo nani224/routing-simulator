@@ -16,6 +16,9 @@ import {
   Radio,
   RefreshCw,
   Sliders,
+  Play,
+  Zap,
+  Shield,
 } from "lucide-react";
 import { usePhantomStore } from "../../store/phantomStore";
 import { PixiObservatoryCanvas } from "./PixiObservatoryCanvas";
@@ -35,12 +38,142 @@ export const PhantomObservatory: React.FC = () => {
     activeMask,
     activeLenses,
     isLive,
+    playbackTime,
+    events,
+    isPlaying,
     setEvents,
     appendEvents,
+    setPlaybackTime,
+    setIsPlaying,
   } = usePhantomStore();
 
   const workerRef = useRef<Worker | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
+
+  // Judge Demo & Interactive Override Handlers
+  const handleRunAutoDemo = () => {
+    setPlaybackTime(0.0);
+    setIsPlaying(true);
+  };
+
+  const handleJudgeBlock = () => {
+    const now = playbackTime;
+    appendEvents([
+      {
+        version: 1,
+        seq: events.length + 1,
+        t: now + 0.05,
+        kind: "CENSOR_SCORE",
+        meta: { score: 0.96, reason: "Judge manual block override" },
+      },
+      {
+        version: 1,
+        seq: events.length + 2,
+        t: now + 0.1,
+        kind: "CENSOR_ACTION",
+        meta: { action: "BLOCK", confidence: 0.98 },
+      },
+      {
+        version: 1,
+        seq: events.length + 3,
+        t: now + 0.15,
+        kind: "PKT_DROP",
+        size: 1420,
+        dir: "TX",
+        meta: { reason: "judge_gate_slam" },
+      },
+      {
+        version: 1,
+        seq: events.length + 4,
+        t: now + 0.2,
+        kind: "CONN_STATE",
+        state: "BLOCKED",
+        meta: { judge_override: true },
+      },
+    ]);
+  };
+
+  const handleJudgeShield = () => {
+    const now = playbackTime;
+    appendEvents([
+      {
+        version: 1,
+        seq: events.length + 1,
+        t: now + 0.05,
+        kind: "POLICY_DECISION",
+        mask_id: "cmaes-learned-v2",
+        meta: {
+          reasoning:
+            "Judge tactical defense shield activated. Deploying CMA-ES learned mask profile with jitter morphing and dummy padding.",
+          bandwidth_overhead: 14.3,
+          latency_cost_ms: 3.78,
+          stealth_gain: 0.89,
+        },
+      },
+      {
+        version: 1,
+        seq: events.length + 2,
+        t: now + 0.1,
+        kind: "MASK_SWITCH",
+        mask_id: "cmaes-learned-v2",
+        meta: { profile: "cmaes-learned-v2" },
+      },
+      {
+        version: 1,
+        seq: events.length + 3,
+        t: now + 0.15,
+        kind: "CONN_STATE",
+        state: "CONNECTED",
+        meta: { status: "shield_deployed" },
+      },
+      {
+        version: 1,
+        seq: events.length + 4,
+        t: now + 0.2,
+        kind: "CENSOR_SCORE",
+        meta: { score: 0.14 },
+      },
+      {
+        version: 1,
+        seq: events.length + 5,
+        t: now + 0.25,
+        kind: "CENSOR_ACTION",
+        meta: { action: "ALLOW" },
+      },
+    ]);
+  };
+
+  // 1-Key Interactive Judge & Demo Keyboard Shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement
+      ) {
+        return;
+      }
+
+      if (e.code === "KeyD") {
+        e.preventDefault();
+        handleRunAutoDemo();
+      } else if (e.code === "KeyB") {
+        e.preventDefault();
+        handleJudgeBlock();
+      } else if (e.code === "KeyS") {
+        e.preventDefault();
+        handleJudgeShield();
+      } else if (e.code === "KeyR") {
+        e.preventDefault();
+        setPlaybackTime(0.0);
+      } else if (e.code === "Space") {
+        e.preventDefault();
+        setIsPlaying(!isPlaying);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [events.length, isPlaying, playbackTime, setIsPlaying, setPlaybackTime]);
 
   // Initialize Web Worker and load initial synthetic episode
   useEffect(() => {
@@ -248,8 +381,36 @@ export const PhantomObservatory: React.FC = () => {
           </div>
         </div>
 
-        {/* Live Status Badges */}
+        {/* Live Status Badges & Judge Interactive Controls */}
         <div className="po-badges">
+          {/* Judge Interactive Controls */}
+          <div className="po-judge-controls">
+            <button
+              className="po-judge-btn po-judge-demo"
+              title="Shortcut: D (Replay scripted 7-act run)"
+              onClick={handleRunAutoDemo}
+            >
+              <Play className="w-3.5 h-3.5 fill-current" />
+              <span>DEMO [D]</span>
+            </button>
+            <button
+              className="po-judge-btn po-judge-block"
+              title="Shortcut: B (Judge manual censor gate-slam)"
+              onClick={handleJudgeBlock}
+            >
+              <Zap className="w-3.5 h-3.5" />
+              <span>BLOCK [B]</span>
+            </button>
+            <button
+              className="po-judge-btn po-judge-shield"
+              title="Shortcut: S (Judge tactical mask switch)"
+              onClick={handleJudgeShield}
+            >
+              <Shield className="w-3.5 h-3.5" />
+              <span>SHIELD [S]</span>
+            </button>
+          </div>
+
           {/* Connection Status */}
           <div
             className="po-badge"

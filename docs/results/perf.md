@@ -1,17 +1,17 @@
 # RouteLab Performance Benchmarks & Measurements
 
-**Date**: 2026-11-03 07:11:13
+**Date**: 2026-11-03 08:08:38
 **Environment**: Python 3.13 / Windows AMD64, msgpack serialization, heapq Dijkstra
 
 ## Scalability Benchmark (Link State Protocol)
 
 | Topology | Nodes | Links | Sim Conv Time (s) | Wall Clock (s) | Control Messages | Control Bytes | Peak Memory (MB) | Events/sec |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| Course-6-Node | 6 | 8 | 0.25s | 0.0568s | 132 | 13794 | 2.13 MB | 4666.5 |
-| Course-10-Node | 10 | 14 | 0.25s | 0.1612s | 380 | 41818 | 3.31 MB | 4720.6 |
-| ScaleFree-20 | 20 | 36 | 0.25s | 1.1242s | 2120 | 247839 | 8.17 MB | 3772.5 |
-| ScaleFree-50 | 50 | 96 | 0.25s | 11.9973s | 14300 | 1721830 | 28.85 MB | 2384.0 |
-| ScaleFree-100 | 100 | 196 | 0.25s | 85.1003s | 58600 | 7153458 | 87.91 MB | 1142.2 |
+| Course-6-Node | 6 | 8 | 0.25s | 0.1508s | 132 | 13794 | 2.13 MB | 1757.7 |
+| Course-10-Node | 10 | 14 | 0.25s | 0.3849s | 380 | 41818 | 3.31 MB | 1977.1 |
+| ScaleFree-20 | 20 | 36 | 0.25s | 2.619s | 2120 | 247839 | 8.17 MB | 1619.3 |
+| ScaleFree-50 | 50 | 96 | 0.25s | 36.7277s | 14300 | 1721830 | 28.84 MB | 778.7 |
+| ScaleFree-100 | 100 | 196 | 0.25s | 233.2579s | 58600 | 7153458 | 87.91 MB | 416.7 |
 
 ## Analysis & Target Attainment
 

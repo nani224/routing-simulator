@@ -60,3 +60,4 @@ self.onmessage = (e: MessageEvent<WorkerIncomingMessage>) => {
     } satisfies WorkerOutgoingMessage);
   }
 };
+
