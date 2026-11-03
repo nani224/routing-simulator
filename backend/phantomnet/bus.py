@@ -213,4 +213,3 @@ class PhantomEventBus:
 
 # Global shared instance for live tunnel and simulator aggregation
 global_event_bus = PhantomEventBus(run_id="default")
-
