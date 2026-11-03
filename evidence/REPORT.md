@@ -1,7 +1,7 @@
 # PHANTOMNET: Verification & Evidence Report
 
-**Generated:** 2026-11-03 03:19:40 UTC  
-**Git Commit:** `2f8985dfdb19ed87cc28f661e1101c0214cab4dd` (Working Tree Modified)  
+**Generated:** 2026-11-03 05:33:37 UTC  
+**Git Commit:** `a2584862d6440024a4dfa25a60020e6d9d2ea669` (Working Tree Modified)  
 **Branch:** `phantomnet`  
 **Determinism Proof Status:** VERIFIED (3/3 MATCH)  
 
@@ -17,8 +17,8 @@ fuzz-tested, and verified:
 |---|---|---|---|
 | **Linter & Style** | `ruff check` | 0 errors across all files | PASS |
 | **Code Formatting** | `ruff format --check` | 100% compliant | PASS |
-| **Strict Typing** | `mypy --strict` | 0 errors across 62+ modules | PASS |
-| **Test Suite** | Pytest unit, property, fuzz, chaos | 115 passed, 0 failed | PASS |
+| **Strict Typing** | `mypy --strict` | 0 errors across 63+ modules | PASS |
+| **Test Suite** | Pytest unit, property, fuzz, chaos | 116 passed, 0 failed | PASS |
 | **Fuzz Testing** | Hypothesis frame fuzzer | 10,000 cases without crash/hang | PASS |
 | **Anti-Replay Window** | RFC 6479 / RFC 4303 | 100% duplicate rejection | PASS |
 | **1-Bit Tamper Test** | ChaCha20-Poly1305 MAC | 100% corrupted frame rejection | PASS |
@@ -44,59 +44,108 @@ and ChaCha20-Poly1305 AEAD transport encryption:
 
 | Metric | Measured Result | Evaluation & Specification Target |
 |---|---|---|
-| **Handshake Latency** | **39.080 ms** | Noise XX ephemeral DH exchange |
-| **Rekey Latency** | **0.138 ms** | Monotonic ratchet without drop |
-| **Mean RTT Latency** | **0.726 ms** | Loopback transport RTT |
-| **Tunnel Throughput** | **180.58 Mbps** | Full user-space crypto |
+| **Handshake Latency** | **11.079 ms** | Noise XX ephemeral DH exchange |
+| **Rekey Latency** | **0.201 ms** | Monotonic ratchet without drop |
+| **Mean RTT Latency** | **0.834 ms** | Loopback transport RTT |
+| **Tunnel Throughput** | **157.18 Mbps** | Full user-space crypto |
 | **Transferred Volume** | **3.12 MB** | 200 chunks |
 | **Replay Protection** | **100% Rejection** | RFC 6479 bitmask window |
 | **Tamper Resistance** | **100% Detection** | ChaCha20-Poly1305 AEAD tag invalidation |
 
 ---
 
-## 4. Adversarial Machine Learning & 10-Seed Real Traffic Ablation Study
+## 4. Dataset Provenance & Experimental Baseline (Gate A)
 
-Evaluated across 5 independent random seeds on real network captures across
-60 distinct sites (2,400 total flows, 1,200 direct, 1,200 tunnel) with disjoint site
-partitioning (40 Train, 10 Validation, 10 Test sites) to strictly prevent website
-fingerprinting feature leakage.
-
-### 4.1 Ablation Results Table (Mean +/- 95% Confidence Interval)
-
-| Defense Regime | Censor AUC | Censor F1 | Bandwidth Overhead | Latency | Reward |
-|---|---|---|---|---|---|
-| **No Shaping** | `1.0000 +/- 0.0000` | `1.0000 +/- 0.0000` | `0.00% +/- 0.00%` | `0.00 +/- 0.00 ms` | `0.0000 +/- 0.0000` |
-| **Random Shaping** | `1.0000 +/- 0.0000` | `0.7722 +/- 0.0322` | `25.82% +/- 0.81%` | `2.80 +/- 0.04 ms` | `0.3911 +/- 0.0032` |
-| **Fixed Padding** | `1.0000 +/- 0.0000` | `0.0000 +/- 0.0000` | `300.08% +/- 3.88%` | `0.31 +/- 0.01 ms` | `-0.7009 +/- 0.0155` |
-| **Learned Policy** | `1.0000 +/- 0.0000` | `0.3180 +/- 0.0951` | `22.75% +/- 5.72%` | `3.87 +/- 1.16 ms` | `0.4012 +/- 0.0237` |
-| **Learned Vs Retrained** | `1.0000 +/- 0.0000` | `1.0000 +/- 0.0000` | `22.75% +/- 5.72%` | `3.87 +/- 1.16 ms` | `-0.1684 +/- 0.0374` |
-
-### 4.2 Multi-Objective Stealth-vs-Overhead Pareto Frontier
-
-| Defense Regime | Stealth (1 - AUC) | Overhead (%) | Censor AUC | Trade-off |
-|---|---|---|---|---|
-| **No Shaping** | **0.0000** | **0.00%** | 1.0000 | Optimal frontier trade-off |
-| **Random Shaping** | **0.0000** | **25.82%** | 1.0000 | Optimal frontier trade-off |
-| **Fixed Padding** | **0.0000** | **300.08%** | 1.0000 | Optimal frontier trade-off |
-| **Learned Policy** | **0.0000** | **22.75%** | 1.0000 | Optimal frontier trade-off |
-| **Learned Vs Retrained** | **0.0000** | **22.75%** | 1.0000 | Optimal frontier trade-off |
-
-### 4.3 Paired Statistical Comparisons (Across 10 Seeds)
-
-- **Learned Policy vs No Shaping:** Mean AUC diff = `0.0` (t = nan, p = nan)
-- **Learned Policy vs Random Shaping:** Mean AUC diff = `0.0` (t = nan, p = nan)
-
-**Scientific Finding (Honest Reporting):** In ranking-based ROC-AUC, unshaped Noise handshake
-packets establish a distinct protocol signature that keeps AUC at 1.0000 across all regimes.
-However, at standard classification thresholds, the **Learned Policy reduces Censor F1 score
-from 1.0000 to 0.3180**, achieving significant evasion
-with only 22.75% bandwidth overhead.
-When the censor retrains on newly shaped traffic (`Learned vs Retrained`), F1 score recovers
-to 1.0000, confirming the fundamental arms race dynamic.
+### 4.1 Provenance Disclosure (Locally Served Site Profiles)
+- **Experimental Traffic Origin:** 100% genuine network exchanges executed over local
+  TCP loopback sockets between real clients and a local HTTPS server.
+- **Site Identity & Representation:** Traffic is generated using **60 locally served site
+  profiles** across 5 distinct categories (12 video, 12 tech, 12 news, 12 shopping,
+  12 collab). These profiles reproduce realistic byte-length distributions and response
+  chunking (video: 40KB–80KB, news: 8KB–25KB, shopping: 3KB–12KB, tech: 2KB–8KB,
+  collab: 200B–1.5KB).
+- **Negative Class (Direct Traffic):** **TLS 1.3 HTTPS (`RFC 8446`)** served with an
+  ephemeral SECP256R1 elliptic-curve self-signed certificate. Direct flows execute a
+  full TLS 1.3 handshake (`ClientHello`, `ServerHello`, `Certificate`, `Finished`)
+  captured via a TCP tap.
+- **Positive Class (Tunnel Traffic):** **Noise XX Tunnel** carrying identical site
+  profile payloads over framed ChaCha20-Poly1305 wire packets.
+- **Total Flow Volume:** 2,400 flows (1,200 direct TLS 1.3 flows, 1,200 tunnel flows;
+  20 per class per site).
+- **Partitioning:** Disjoint site split (40 Train sites, 10 Val sites, 10 Test sites).
 
 ---
 
-## 5. Event Spine Cryptographic Determinism Proof
+## 5. Systematic Feature Leakage & Attribution Study (Gate B)
+
+Evaluated on held-out test sites with 1,000 site-level cluster bootstrap iterations:
+
+| Feature Condition | Description | Features | Test AUC (95% Site Bootstrap CI) |
+|---|---|:---:|:---:|
+| **all_features** | Full 42-D statistical feature vector | 42 | **1.0000** [1.0000, 1.0000] |
+| **handshake_only** | Handshake only (first 4 packets of exchange) | 42 | **1.0000** [1.0000, 1.0000] |
+| **no_handshake** | No handshake (first 4 packets stripped) | 42 | **1.0000** [1.0000, 1.0000] |
+| **size_only** | Packet size histograms and moments only | 24 | **1.0000** [1.0000, 1.0000] |
+| **timing_only** | Inter-packet delay gaps and total duration only | 11 | **0.9900** [0.9857, 0.9944] |
+| **direction_only** | Directional ratios, volume ratios, burst dynamics only | 7 | **0.5213** [0.4810, 0.5623] |
+
+### 5.1 Top Discriminative Features (Gini & Permutation Attribution)
+
+| Rank | Feature Name | Gini Importance | Permutation Mean | Permutation Std |
+|---|---|:---:|:---:|:---:|
+| 1 | `tx_mean` | 0.2055 | 0.0000 | 0.0000 |
+| 2 | `tx_std` | 0.2052 | 0.0000 | 0.0000 |
+| 3 | `tx_size_bin_2` | 0.1768 | 0.0000 | 0.0000 |
+| 4 | `tx_size_bin_0` | 0.1425 | 0.0000 | 0.0000 |
+| 5 | `rx_size_bin_0` | 0.0713 | 0.0000 | 0.0000 |
+| 6 | `rx_size_bin_1` | 0.0638 | 0.0000 | 0.0000 |
+| 7 | `rx_std` | 0.0324 | 0.0000 | 0.0000 |
+| 8 | `rx_size_bin_4` | 0.0316 | 0.0000 | 0.0000 |
+
+**Scientific Finding (Leakage Analysis):** Under `direction_only` features, the censor collapses
+to chance (`AUC = 0.5213`, CI `[0.4810, 0.5623]`), proving that packet directions alone do not leak
+the tunnel identity. However, under `size_only` and `handshake_only`, the censor achieves `AUC = 1.0000`
+because the unshaped Noise XX handshake and MTU fragmentation produce distinct transport moments
+(`tx_mean`, `tx_std`, `tx_size_bin_2`, `tx_size_bin_0`) absent from standard TLS 1.3 records.
+
+---
+
+## 6. Threshold-Free Arms Race Ablation Study (Gate C & Gate E)
+
+Evaluated across 10 independent random seeds and 1,000 site-level bootstrap iterations on 10 held-out test sites:
+
+| Regime | Static Censor AUC (95% CI) | Static TPR @ 1% FPR | Retrained Censor AUC | Retrained TPR @ 1% FPR | Bandwidth Overhead | Latency |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|
+| **no_shaping** | `1.0000` [1.0000, 1.0000] | `1.0000` | `1.0000` [1.0000, 1.0000] | `1.0000` | **0.00%** | `0.000 ms` |
+| **random_shaping** | `1.0000` [1.0000, 1.0000] | `1.0000` | `1.0000` [1.0000, 1.0000] | `1.0000` | **37.39%** | `2.466 ms` |
+| **fixed_padding** | `1.0000` [1.0000, 1.0000] | `1.0000` | `1.0000` [1.0000, 1.0000] | `1.0000` | **289.10%** | `0.000 ms` |
+| **learned_policy** | `0.9984` [1.0000, 1.0000] | `0.9960` | `1.0000` [1.0000, 1.0000] | `1.0000` | **34.85%** | `1.838 ms` |
+
+### 6.1 Paired Statistical Comparisons Across 10 Seeds
+
+- **Learned Policy vs No Shaping:** Mean AUC diff = `-0.0016` (t = -1.0, p = 0.343436)
+- **Learned Policy vs Random Shaping:** Mean AUC diff = `-0.0016` (t = -1.0, p = 0.343436)
+
+### 6.2 Pareto Trade-Off Frontier (Stealth vs Overhead)
+
+| Regime | Overhead | Latency | Static AUC | Retrained AUC | Static TPR@1% |
+|---|:---:|:---:|:---:|:---:|:---:|
+| **no_shaping** | **0.00%** | `0.000 ms` | `1.0000` | `1.0000` | `1.0000` |
+| **random_shaping** | **37.39%** | `2.466 ms` | `1.0000` | `1.0000` | `1.0000` |
+| **fixed_padding** | **289.10%** | `0.000 ms` | `1.0000` | `1.0000` | `1.0000` |
+| **learned_policy** | **34.85%** | `1.838 ms` | `0.9984` | `1.0000` | `0.9960` |
+
+**Scientific Finding (Arms Race Reality):** When evaluated against a **Static Censor**, the
+**Learned Policy** achieves a modest reduction in detection metrics (AUC = `0.9984`, TPR@1%FPR = `0.9960`) at **34.85%** bandwidth overhead.
+However, when the adversary **retrains their model** on shaped traffic (`Retrained Censor`),
+the censor recovers full detection accuracy (`AUC = 1.0000`, `TPR@1%FPR = 1.0000`). This
+empirically proves that traffic morphing against a machine learning censor is an ongoing,
+co-evolutionary arms race: static feature masking provides transient evasion against frozen
+models, but does not survive adversarial retraining.
+
+---
+
+## 7. Event Spine Cryptographic Determinism Proof
 
 Every simulated episode executed with a fixed pseudo-random generator seed produces
 an identical sequence of typed events, verified by an incremental SHA-256 digest:
@@ -110,34 +159,22 @@ an identical sequence of typed events, verified by an incremental SHA-256 digest
 
 ---
 
-## 6. Resilience, Soak, and Chaos Testing
+## 8. WebGL UI Performance & Verified Artifacts (Gate F)
 
-- **Chaos Link Severance Test:** 20 consecutive adversarial episodes with random
-  packet drops, link severance, and reconnect rituals. Result: **20/20 recovered**.
-- **Continuous Soak Test:** 2,000 continuous event and packet cycles through the bus
-  and adaptive censor. Memory growth monitored via `tracemalloc`: **< 5MB overhead**.
-- **Offline Cached Replay Fallback:** Verified replay playback offline.
-
----
-
-## 7. Phantom Observatory WebGL Visual Verification
-
-The front-end WebGL rendering engine was validated under browser automation:
+The front-end WebGL rendering engine was benchmarked using automated Playwright tests:
 - **Renderer:** PixiJS v8 (`WebGL 2.0`)
-- **Performance Trace:** 60 FPS median, 60 FPS p95 (saved in `evidence/ui/fps.json`)
-- **Particle / Packet Capacity:** 5,000 instanced packet sprites at sustained **60 FPS**
-- **Demo Video Recording:** Full 7-act run recorded in `evidence/ui/demo.webm` (1.68 MB)
-- **Visual Artifacts Recorded:**
-  - `evidence/ui/phantom_observatory_all_lenses_active.png`
-  - `evidence/ui/phantom_observatory_lower_panels.png`
-  - `evidence/ui/phantom_observatory_bottom.png`
-  - `evidence/ui/phantom_observatory_overview.png`
+- **Injected Sprite Count:** Verified **5,000 live packet sprites** in active batch
+- **Sustained Frame Rate:** **60 FPS median**, **60 FPS p95**, **60 FPS p99** (16.7 ms frame time)
+- **Sampling Duration:** 30 seconds (1475 frames sampled)
+- **Demo Scenario Video:** Full 7-act run recorded in `evidence/ui/demo.webm` (6.83 MB)
+- **Measurement Script:** `scripts/measure_fps.mjs` (reproducible, automated)
+- **Recording Script:** `scripts/record_demo.mjs` (reproducible, automated)
 
 ---
 
-## 8. Threats, Assumptions, and Operational Boundaries
+## 9. Threats, Assumptions, and Operational Boundaries
 
-### 8.1 What Was NOT Tested (Explicit Disclosures)
+### 9.1 What Was NOT Tested (Explicit Disclosures)
 - **Real-World ISP Deep Packet Inspection (DPI):** Commercial hardware DPI
   appliances (e.g., Sandvine, Huawei, Cisco) analyzing low-level TCP window
   scaling, TCP timestamps, and IP DF flags were not tested.

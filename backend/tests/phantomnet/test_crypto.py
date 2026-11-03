@@ -122,3 +122,62 @@ def test_nonce_uniqueness_property() -> None:
     # Monotonically increasing with zero collisions
     assert tx_counts == list(range(1, 51))
     assert len(set(tx_counts)) == 50
+
+
+def test_gate_d_padded_handshake_completion() -> None:
+    """Gate D: Handshake payload padding succeeds, decrypts payload, and preserves transport."""
+    init = NoiseSession(is_initiator=True)
+    resp = NoiseSession(is_initiator=False)
+
+    pad1 = os.urandom(128)
+    pad2 = os.urandom(256)
+    pad3 = os.urandom(64)
+
+    # Msg 1 with 128B padding
+    m1 = init.write_handshake_message(pad1)
+    assert len(m1) == 32 + 128
+    got_p1 = resp.read_handshake_message(m1)
+    assert got_p1 == pad1
+
+    # Msg 2 with 256B padding (encrypted payload in Noise XX Msg 2)
+    m2 = resp.write_handshake_message(pad2)
+    assert len(m2) == 96 + 256
+    got_p2 = init.read_handshake_message(m2)
+    assert got_p2 == pad2
+
+    # Msg 3 with 64B padding (encrypted payload in Noise XX Msg 3)
+    m3 = init.write_handshake_message(pad3)
+    assert len(m3) == 64 + 64
+    got_p3 = resp.read_handshake_message(m3)
+    assert got_p3 == pad3
+
+    assert init.handshake_finished
+    assert resp.handshake_finished
+
+    # Transport data after padded handshake
+    msg = b"Transport data over padded Noise XX session"
+    ct = init.encrypt(msg)
+    pt = resp.decrypt(ct)
+    assert pt == msg
+
+
+def test_gate_d_padded_handshake_tamper() -> None:
+    """Gate D: Tampering with padded handshake message payload triggers CryptoError."""
+    init = NoiseSession(is_initiator=True)
+    resp = NoiseSession(is_initiator=False)
+
+    pad1 = os.urandom(100)
+    m1 = bytearray(init.write_handshake_message(pad1))
+
+    # In Msg 1, payload is cleartext (e only), so read_handshake_message accepts it.
+    resp.read_handshake_message(bytes(m1))
+
+    # Msg 2 has Poly1305 MAC over the encrypted payload. Tampering must fail.
+    pad2 = os.urandom(150)
+    m2 = bytearray(resp.write_handshake_message(pad2))
+    m2[len(m2) - 10] ^= 0x01  # Flip bit in encrypted payload/MAC
+
+    from phantomnet.tunnel.crypto import CryptoError
+
+    with pytest.raises(CryptoError):
+        init.read_handshake_message(bytes(m2))

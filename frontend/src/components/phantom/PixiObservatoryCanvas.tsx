@@ -23,6 +23,24 @@ interface Particle {
   life: number;
 }
 
+interface InjectedSprite {
+  x: number;
+  y: number;
+  speed: number;
+  size: number;
+  isTx: boolean;
+}
+
+declare global {
+  interface Window {
+    __PHANTOM_OBSERVATORY__?: {
+      app: Application;
+      injectPackets: (count: number) => void;
+      getSpriteCount: () => number;
+    };
+  }
+}
+
 export const PixiObservatoryCanvas: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const appRef = useRef<Application | null>(null);
@@ -107,12 +125,35 @@ export const PixiObservatoryCanvas: React.FC = () => {
 
       // Animation & particle pools
       const particles: Particle[] = [];
+      const injectedSprites: InjectedSprite[] = [];
       let frameCount = 0;
       let lastTime = performance.now();
       let lastFpsCheck = performance.now();
       let rotAngle = 0;
       let scanY = 0;
       let gateY = -120; // Gate slam position
+
+      // Expose harness on window for measurement scripts
+      window.__PHANTOM_OBSERVATORY__ = {
+        app,
+        injectPackets: (count: number) => {
+          injectedSprites.length = 0;
+          const p1 = 180;
+          const p2 = width - 180;
+          const pLen = p2 - p1;
+          for (let i = 0; i < count; i++) {
+            injectedSprites.push({
+              x: p1 + Math.random() * pLen,
+              y: 85 + (Math.random() - 0.5) * 16,
+              speed: 60 + Math.random() * 120,
+              size: Math.random() * 24 + 10,
+              isTx: Math.random() > 0.5,
+            });
+          }
+        },
+        getSpriteCount: () =>
+          injectedSprites.length + usePhantomStore.getState().livePacketsInFlight.length,
+      };
 
       // Main Render Loop (60 FPS WebGL target)
       const tickerCallback = () => {
@@ -269,6 +310,18 @@ export const PixiObservatoryCanvas: React.FC = () => {
             // Ciphertext glyph texture: scrambled bits
             packetsGfx.rect(px + 4, pipeY - 2, Math.max(4, pktLength - 8), 4);
             packetsGfx.fill({ color: 0x080b10, alpha: 0.9 });
+          }
+
+          // Render injected packet sprites (high capacity 5,000 WebGL batch)
+          for (let i = 0; i < injectedSprites.length; i++) {
+            const sp = injectedSprites[i];
+            sp.x += (sp.isTx ? 1 : -1) * sp.speed * dt;
+            if (sp.x > pipeX2) sp.x = pipeX1;
+            if (sp.x < pipeX1) sp.x = pipeX2;
+
+            const col = sp.isTx ? 0x00f3ff : 0x00ffaa;
+            packetsGfx.rect(sp.x, sp.y - 3, sp.size, 6);
+            packetsGfx.fill({ color: col, alpha: 0.8 });
           }
         }
 

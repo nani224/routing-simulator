@@ -69,12 +69,15 @@ class CMAESTuner:
     ) -> None:
         self.rng = np.random.RandomState(seed)
         self.initial_params = initial_params or MaskParameters()
-        self.dim = 5
+        self.dim = 10
         self.pop_size = pop_size
         self.mu = pop_size // 2
 
-        # Mean vector in normalized space [0, 1]
-        self.mean = np.array([0.25, 0.2, 0.15, 0.4, 0.25], dtype=np.float64)
+        # Mean vector in normalized space [0, 1] for all 10 transport & handshake parameters
+        self.mean = np.array(
+            [0.25, 0.2, 0.15, 0.4, 0.25, 0.35, 0.45, 0.3, 0.3, 0.2],
+            dtype=np.float64,
+        )
         self.sigma = 0.2
         self.cov = np.eye(self.dim, dtype=np.float64)
 
@@ -90,6 +93,11 @@ class CMAESTuner:
         dummy = float(v[2] * 0.25)  # 0 to 25%
         chop = int(3 + v[3] * 12)  # 3 to 15
         morph = float(v[4] * 0.8)  # 0 to 0.8
+        hs_pad_m1 = int(v[5] * 450)  # 0 to 450 bytes
+        hs_pad_m2 = int(v[6] * 650)  # 0 to 650 bytes
+        hs_pad_m3 = int(v[7] * 250)  # 0 to 250 bytes
+        hs_preamble = int(round(v[8] * 2.0))  # 0, 1, or 2
+        hs_jitter = float(v[9] * 15.0)  # 0 to 15ms
 
         return MaskParameters(
             pad_bucket=pad,
@@ -97,6 +105,11 @@ class CMAESTuner:
             dummy_rate=dummy,
             burst_chop=chop,
             morph_ratio=morph,
+            hs_pad_m1=hs_pad_m1,
+            hs_pad_m2=hs_pad_m2,
+            hs_pad_m3=hs_pad_m3,
+            hs_preamble_count=hs_preamble,
+            hs_jitter_ms=hs_jitter,
         )
 
     def tune_step(

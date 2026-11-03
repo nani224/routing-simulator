@@ -2,41 +2,37 @@
   {
     "regime": "no_shaping",
     "bandwidth_overhead_pct": 0.0,
-    "stealth_score": 0.0,
-    "censor_auc": 1.0,
-    "auc_ci_95": 0.0,
-    "reward": 0.0
+    "latency_cost_ms": 0.0,
+    "static_auc": 1.0,
+    "retrained_auc": 1.0,
+    "static_tpr_at_1pct_fpr": 1.0,
+    "retrained_tpr_at_1pct_fpr": 1.0
   },
   {
     "regime": "random_shaping",
-    "bandwidth_overhead_pct": 25.82,
-    "stealth_score": 0.0,
-    "censor_auc": 1.0,
-    "auc_ci_95": 0.0,
-    "reward": 0.3911
+    "bandwidth_overhead_pct": 37.39,
+    "latency_cost_ms": 2.466,
+    "static_auc": 1.0,
+    "retrained_auc": 1.0,
+    "static_tpr_at_1pct_fpr": 1.0,
+    "retrained_tpr_at_1pct_fpr": 1.0
   },
   {
     "regime": "fixed_padding",
-    "bandwidth_overhead_pct": 300.08,
-    "stealth_score": 0.0,
-    "censor_auc": 1.0,
-    "auc_ci_95": 0.0,
-    "reward": -0.7009
+    "bandwidth_overhead_pct": 289.1,
+    "latency_cost_ms": 0.0,
+    "static_auc": 1.0,
+    "retrained_auc": 1.0,
+    "static_tpr_at_1pct_fpr": 1.0,
+    "retrained_tpr_at_1pct_fpr": 1.0
   },
   {
     "regime": "learned_policy",
-    "bandwidth_overhead_pct": 22.75,
-    "stealth_score": 0.0,
-    "censor_auc": 1.0,
-    "auc_ci_95": 0.0,
-    "reward": 0.4012
-  },
-  {
-    "regime": "learned_vs_retrained",
-    "bandwidth_overhead_pct": 22.75,
-    "stealth_score": 0.0,
-    "censor_auc": 1.0,
-    "auc_ci_95": 0.0,
-    "reward": -0.1684
+    "bandwidth_overhead_pct": 34.85,
+    "latency_cost_ms": 1.838,
+    "static_auc": 0.9984,
+    "retrained_auc": 1.0,
+    "static_tpr_at_1pct_fpr": 0.996,
+    "retrained_tpr_at_1pct_fpr": 1.0
   }
 ]

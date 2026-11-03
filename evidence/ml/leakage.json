@@ -1,0 +1,137 @@
+{
+  "dataset_name": "PHANTOMNET_REAL_TRAFFIC_60SITES_TLS13",
+  "negative_class": "TLS 1.3 HTTPS (RFC 8446)",
+  "tunnel_class": "Noise XX (ChaCha20-Poly1305)",
+  "train_sites": 40,
+  "test_sites": 10,
+  "train_flows": 1600,
+  "test_flows": 400,
+  "ablations": {
+    "all_features": {
+      "description": "Full 42-D statistical feature vector",
+      "feature_count": 42,
+      "test_auc": 1.0,
+      "ci_95": [
+        1.0,
+        1.0
+      ]
+    },
+    "handshake_only": {
+      "description": "Handshake only (first 4 packets of exchange)",
+      "feature_count": 42,
+      "test_auc": 1.0,
+      "ci_95": [
+        1.0,
+        1.0
+      ]
+    },
+    "no_handshake": {
+      "description": "No handshake (first 4 packets stripped)",
+      "feature_count": 42,
+      "test_auc": 1.0,
+      "ci_95": [
+        1.0,
+        1.0
+      ]
+    },
+    "size_only": {
+      "description": "Packet size histograms and moments only",
+      "feature_count": 24,
+      "test_auc": 1.0,
+      "ci_95": [
+        1.0,
+        1.0
+      ]
+    },
+    "timing_only": {
+      "description": "Inter-packet delay gaps and total duration only",
+      "feature_count": 11,
+      "test_auc": 0.99,
+      "ci_95": [
+        0.9857,
+        0.9944
+      ]
+    },
+    "direction_only": {
+      "description": "Directional ratios, volume ratios, burst dynamics only",
+      "feature_count": 7,
+      "test_auc": 0.5213,
+      "ci_95": [
+        0.481,
+        0.5623
+      ]
+    }
+  },
+  "top_permutation_features": [
+    {
+      "feature_index": 36,
+      "feature_name": "tx_mean",
+      "gini_importance": 0.2055,
+      "permutation_mean": 0.0,
+      "permutation_std": 0.0
+    },
+    {
+      "feature_index": 37,
+      "feature_name": "tx_std",
+      "gini_importance": 0.2052,
+      "permutation_mean": 0.0,
+      "permutation_std": 0.0
+    },
+    {
+      "feature_index": 2,
+      "feature_name": "tx_size_bin_2",
+      "gini_importance": 0.1768,
+      "permutation_mean": 0.0,
+      "permutation_std": 0.0
+    },
+    {
+      "feature_index": 0,
+      "feature_name": "tx_size_bin_0",
+      "gini_importance": 0.1425,
+      "permutation_mean": 0.0,
+      "permutation_std": 0.0
+    },
+    {
+      "feature_index": 10,
+      "feature_name": "rx_size_bin_0",
+      "gini_importance": 0.0713,
+      "permutation_mean": 0.0,
+      "permutation_std": 0.0
+    },
+    {
+      "feature_index": 11,
+      "feature_name": "rx_size_bin_1",
+      "gini_importance": 0.0638,
+      "permutation_mean": 0.0,
+      "permutation_std": 0.0
+    },
+    {
+      "feature_index": 39,
+      "feature_name": "rx_std",
+      "gini_importance": 0.0324,
+      "permutation_mean": 0.0,
+      "permutation_std": 0.0
+    },
+    {
+      "feature_index": 14,
+      "feature_name": "rx_size_bin_4",
+      "gini_importance": 0.0316,
+      "permutation_mean": 0.0,
+      "permutation_std": 0.0
+    },
+    {
+      "feature_index": 22,
+      "feature_name": "gap_bin_2",
+      "gini_importance": 0.0215,
+      "permutation_mean": 0.0,
+      "permutation_std": 0.0
+    },
+    {
+      "feature_index": 21,
+      "feature_name": "gap_bin_1",
+      "gini_importance": 0.0132,
+      "permutation_mean": 0.0,
+      "permutation_std": 0.0
+    }
+  ]
+}

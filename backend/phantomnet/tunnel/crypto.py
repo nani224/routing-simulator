@@ -6,6 +6,7 @@ import os
 import time
 from typing import Any
 
+from cryptography.exceptions import InvalidTag
 from noise.connection import Keypair, NoiseConnection
 from noise.exceptions import (
     NoiseHandshakeError,
@@ -86,6 +87,8 @@ class NoiseSession:
         try:
             payload: bytes = self._conn.read_message(message)
             return payload
+        except (NoiseInvalidMessage, InvalidTag) as e:
+            raise TamperError(f"Handshake authentication tag verification failed: {e}") from e
         except NoiseError as e:
             raise CryptoError(f"Noise handshake read failed: {e}") from e
 

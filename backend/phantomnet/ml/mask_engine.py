@@ -1,4 +1,4 @@
-"""Mask Engine: parameter vector morphing, padding, jitter, and dummy packet insertion.
+"""Mask Engine: parameter vector morphing, padding, jitter, dummy packets, and handshake masking.
 
 Evaluates trade-offs:
 Reward = stealth - lambda1 * bandwidth_overhead - lambda2 * latency_cost
@@ -15,13 +15,20 @@ from phantomnet.data.traces import FlowTrace, PacketMeta
 
 @dataclass(frozen=True)
 class MaskParameters:
-    """Tunable parameter vector governing traffic shaping."""
+    """Tunable parameter vector governing transport and handshake traffic shaping."""
 
     pad_bucket: int = 128  # Quantize packet size to bucket multiples (e.g., 64, 128, 256, 512)
     jitter_ms: float = 2.0  # Timing delay variance in milliseconds
     dummy_rate: float = 0.05  # Probability of injecting dummy cover packets
     burst_chop: int = 8  # Maximum consecutive packets before inserting delay
     morph_ratio: float = 0.2  # Fraction of packets morphed to cover distribution
+
+    # Gate D: Noise Handshake Masking Parameters
+    hs_pad_m1: int = 0  # Payload padding for Noise XX Msg 1 (bytes)
+    hs_pad_m2: int = 0  # Payload padding for Noise XX Msg 2 (bytes)
+    hs_pad_m3: int = 0  # Payload padding for Noise XX Msg 3 (bytes)
+    hs_preamble_count: int = 0  # Number of dummy preamble packets before handshake (0-2)
+    hs_jitter_ms: float = 0.0  # Handshake round-trip timing jitter variance (ms)
 
     def to_vector(self) -> list[float]:
         return [
@@ -30,16 +37,34 @@ class MaskParameters:
             self.dummy_rate,
             float(self.burst_chop),
             self.morph_ratio,
+            float(self.hs_pad_m1),
+            float(self.hs_pad_m2),
+            float(self.hs_pad_m3),
+            float(self.hs_preamble_count),
+            self.hs_jitter_ms,
         ]
 
     @classmethod
     def from_vector(cls, v: list[float]) -> MaskParameters:
+        if len(v) < 10:
+            return cls(
+                pad_bucket=max(32, int(round(v[0] / 32.0) * 32)),
+                jitter_ms=max(0.0, min(25.0, v[1])),
+                dummy_rate=max(0.0, min(0.4, v[2])),
+                burst_chop=max(2, min(20, int(round(v[3])))),
+                morph_ratio=max(0.0, min(1.0, v[4])),
+            )
         return cls(
             pad_bucket=max(32, int(round(v[0] / 32.0) * 32)),
             jitter_ms=max(0.0, min(25.0, v[1])),
             dummy_rate=max(0.0, min(0.4, v[2])),
             burst_chop=max(2, min(20, int(round(v[3])))),
             morph_ratio=max(0.0, min(1.0, v[4])),
+            hs_pad_m1=max(0, min(500, int(round(v[5])))),
+            hs_pad_m2=max(0, min(700, int(round(v[6])))),
+            hs_pad_m3=max(0, min(300, int(round(v[7])))),
+            hs_preamble_count=max(0, min(2, int(round(v[8])))),
+            hs_jitter_ms=max(0.0, min(20.0, v[9])),
         )
 
 
@@ -75,10 +100,41 @@ class MaskEngine:
         shaped_packets: list[PacketMeta] = []
 
         total_added_delay = 0.0
+
+        # Gate D: Handshake Masking for tunnel flows
+        start_idx = 0
+        if raw_trace.is_tunnel and len(raw_packets) >= 3:
+            # 1. Dummy preambles before handshake
+            if params.hs_preamble_count > 0:
+                for _ in range(params.hs_preamble_count):
+                    p_size = self.rng.choice([240, 320, 512])
+                    p_dt = round(self.rng.uniform(0.001, 0.004), 5)
+                    shaped_packets.append(PacketMeta(size=p_size, direction="TX", dt=p_dt))
+                    total_added_delay += p_dt
+
+            # 2. Handshake messages (M1, M2, M3)
+            hs_pads = [params.hs_pad_m1, params.hs_pad_m2, params.hs_pad_m3]
+            for i in range(3):
+                orig_p = raw_packets[i]
+                padded_size = min(1500, orig_p.size + hs_pads[i])
+                jit = (
+                    self.rng.uniform(0.0, params.hs_jitter_ms / 1000.0)
+                    if params.hs_jitter_ms > 0
+                    else 0.0
+                )
+                dt = round(orig_p.dt + jit, 5)
+                total_added_delay += jit
+                shaped_packets.append(
+                    PacketMeta(size=padded_size, direction=orig_p.direction, dt=dt)
+                )
+
+            start_idx = 3
+
+        # Transport data packet shaping
         consecutive_dir = ""
         burst_len = 0
 
-        for p in raw_packets:
+        for p in raw_packets[start_idx:]:
             size = p.size
             dt = p.dt
 
@@ -91,7 +147,6 @@ class MaskEngine:
 
             # 2. Size morphing
             if self.rng.random() < params.morph_ratio:
-                # Sample toward a neutral 512-byte cover distribution
                 size = int(size * 0.7 + self.rng.choice([384, 512, 640]) * 0.3)
 
             # 3. Timing jitter
@@ -104,7 +159,7 @@ class MaskEngine:
             if p.direction == consecutive_dir:
                 burst_len += 1
                 if burst_len >= params.burst_chop:
-                    burst_delay = 0.005  # 5ms chop delay
+                    burst_delay = 0.005
                     dt += burst_delay
                     total_added_delay += burst_delay
                     burst_len = 0

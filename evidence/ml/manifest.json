@@ -1,6 +1,13 @@
 {
-  "dataset_name": "PHANTOMNET_REAL_TRAFFIC_60SITES",
+  "dataset_name": "PHANTOMNET_REAL_TRAFFIC_60SITES_TLS13",
+  "description": "Locally served site profiles over TLS 1.3 (direct) vs Noise XX (tunnel)",
+  "negative_class_protocol": "TLS 1.3 (RFC 8446) with SECP256R1 EC Certificate",
+  "tunnel_class_protocol": "Noise XX (Noise_XX_25519_ChaChaPoly_BLAKE2s)",
   "num_sites": 60,
+  "flows_per_class_per_site": 20,
+  "total_flows": 2400,
+  "total_direct_tls_flows": 1200,
+  "total_tunnel_flows": 1200,
   "categories": [
     "video",
     "tech",
@@ -8,16 +15,8 @@
     "shopping",
     "collab"
   ],
-  "flows_per_class_per_site": 20,
-  "total_flows": 2400,
-  "total_tunnel_flows": 1200,
-  "total_direct_flows": 1200,
-  "seed": 42,
-  "commit": "2f8985dfdb19ed87cc28f661e1101c0214cab4dd",
-  "timestamp": "2026-11-03T03:02:46.459405+00:00",
-  "site_split": {
-    "train_sites_count": 40,
-    "val_sites_count": 10,
-    "test_sites_count": 10
-  }
+  "capture_timestamp": "2026-11-03T04:55:36.021087+00:00",
+  "git_commit": "a2584862d6440024a4dfa25a60020e6d9d2ea669",
+  "provenance": "locally served site profiles over loopback TCP sockets",
+  "seed": 42
 }
