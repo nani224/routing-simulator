@@ -1,0 +1,42 @@
+[
+  {
+    "regime": "no_shaping",
+    "bandwidth_overhead_pct": 0.0,
+    "stealth_score": 0.75,
+    "censor_auc": 0.25,
+    "auc_ci_95": 0.3725,
+    "reward": 0.75
+  },
+  {
+    "regime": "random_shaping",
+    "bandwidth_overhead_pct": 14.63,
+    "stealth_score": 0.8,
+    "censor_auc": 0.2,
+    "auc_ci_95": 0.1515,
+    "reward": 0.4362
+  },
+  {
+    "regime": "fixed_padding",
+    "bandwidth_overhead_pct": 217.42,
+    "stealth_score": 0.7833,
+    "censor_auc": 0.2167,
+    "auc_ci_95": 0.204,
+    "reward": -0.3699
+  },
+  {
+    "regime": "learned_policy",
+    "bandwidth_overhead_pct": 14.33,
+    "stealth_score": 0.6667,
+    "censor_auc": 0.3333,
+    "auc_ci_95": 0.2423,
+    "reward": 0.4351
+  },
+  {
+    "regime": "learned_vs_retrained",
+    "bandwidth_overhead_pct": 14.33,
+    "stealth_score": 0.5167,
+    "censor_auc": 0.4833,
+    "auc_ci_95": 0.1819,
+    "reward": 0.4594
+  }
+]

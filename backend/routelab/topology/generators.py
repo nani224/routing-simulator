@@ -10,6 +10,7 @@ import math
 import random
 
 import networkx as nx
+import numpy as np
 
 from routelab.topology.model import Topology, TopologyLink, TopologyNode
 
@@ -134,9 +135,12 @@ def generate_scale_free(num_nodes: int = 20, m: int = 2, seed: int = 42) -> Topo
         pos = nx.spring_layout(g, seed=seed)
     except Exception:  # noqa: BLE001
         pos = {
-            n: (
-                math.cos((2 * math.pi * n) / max(1, num_nodes)),
-                math.sin((2 * math.pi * n) / max(1, num_nodes)),
+            n: np.array(
+                [
+                    math.cos((2 * math.pi * n) / max(1, num_nodes)),
+                    math.sin((2 * math.pi * n) / max(1, num_nodes)),
+                ],
+                dtype=np.float64,
             )
             for n in g.nodes()
         }

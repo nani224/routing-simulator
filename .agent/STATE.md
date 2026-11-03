@@ -1,6 +1,6 @@
 # PHANTOMNET State Tracker
 
-## Current Phase: Phase 3 (Phantom Observatory UI)
+## Current Phase: Phase 4 (The AI: Adversarial Learning & Mask Engine)
 Status: COMPLETED
 
 ### Completed Tasks
@@ -41,7 +41,15 @@ Status: COMPLETED
   - `TimeMachineControls.tsx`: scrub/seek slider, play/pause, 0.1x to 5x speed buttons, live stream vs replay toggle, 60 FPS counter
 - [x] Integrated Dual Arena global switcher into `frontend/src/App.tsx` allowing seamless switching between Phantom Observatory and RouteLab Cartographer
 - [x] Captured visual regression screenshots in `/evidence/ui/` (`phantom_observatory_all_lenses_active.png`, `phantom_observatory_lower_panels.png`, `phantom_observatory_bottom.png`, `phantom_observatory_overview.png`)
-- [x] Verified 60 FPS rendering, zero console errors, full strict TypeScript compliance
+- [x] Built metadata-only capture pipeline in `backend/phantomnet/data/traces.py` with 30 representative sites across 5 categories and strictly disjoint site partitioner (Train=18, Val=6, Test=6) preventing site leakage
+- [x] Implemented 42-dimensional metadata feature extractor in `backend/phantomnet/ml/features.py` (size/gap histograms, burst statistics, direction ratios, moments)
+- [x] Implemented classifier baselines in `backend/phantomnet/ml/censor_models.py` (`RandomForestCensor` and `OneDCNNCensor`) reporting AUC, F1, accuracy, and confusion matrices
+- [x] Implemented `MaskEngine` in `backend/phantomnet/ml/mask_engine.py` with 5-parameter shaping vector (`pad_bucket`, `jitter_ms`, `dummy_rate`, `burst_chop`, `morph_ratio`) and multi-objective reward
+- [x] Implemented `CMAESTuner` and `TerrainScanner` bandit in `backend/phantomnet/ml/tuner.py`
+- [x] Implemented `AdversarialCoTrainer` in `backend/phantomnet/ml/co_training.py` with iterative co-training loop emitting `TRAIN_ROUND` and `POLICY_DECISION` events
+- [x] Authored 5-seed ablation study in `backend/phantomnet/ml/ablation.py` across 5 regimes (`no_shaping`, `random_shaping`, `fixed_padding`, `learned_policy`, `learned_vs_retrained`) with 95% Confidence Intervals
+- [x] Generated ablation evidence at `/evidence/ml/ablation.json` and Pareto frontier at `/evidence/ml/pareto.json`
+- [x] Verified full Phase 4 test suite in `backend/tests/phantomnet/test_ml.py` (108 total tests passing)
 
 ### Evidence Files
 - `/spec/events.md`
@@ -49,7 +57,10 @@ Status: COMPLETED
 - `/frontend/src/types/events.ts`
 - `/docs/adr/0001-event-bus-and-routelab-reuse.md`
 - `/docs/skills.md`
+- `/docs/threats_and_limits.md`
 - `/evidence/bench/tunnel.json`
+- `/evidence/ml/ablation.json`
+- `/evidence/ml/pareto.json`
 - `/evidence/ui/phantom_observatory_all_lenses_active.png`
 - `/evidence/ui/phantom_observatory_lower_panels.png`
 - `/evidence/ui/phantom_observatory_bottom.png`
@@ -60,17 +71,19 @@ Status: COMPLETED
 - `backend/phantomnet/synthetic.py`
 - `backend/phantomnet/tunnel/`
 - `backend/phantomnet/censor/`
+- `backend/phantomnet/data/`
+- `backend/phantomnet/ml/`
 - `frontend/src/workers/eventDecoder.worker.ts`
 - `frontend/src/store/phantomStore.ts`
 - `frontend/src/components/phantom/`
 
 ### Verification Summary
 - `make verify` status: GREEN (code 0)
-- Ruff Lint & Format Check: Clean (0 errors across 103 files)
-- Mypy Strict Typecheck: Clean (53 source files passed with zero warnings)
-- Pytest Suite: 101 passed, 0 failed (all 67 RouteLab tests preserved + 34 PhantomNet tests)
-- Frontend Build: Clean (compiled in 1.27s)
+- Ruff Lint & Format Check: Clean (0 errors across 113 files)
+- Mypy Strict Typecheck: Clean (62 source files passed with zero warnings)
+- Pytest Suite: 108 passed, 0 failed (all 67 RouteLab tests preserved + 41 PhantomNet tests)
+- Frontend Build: Clean (compiled in 2.14s)
 - UI Visual Verification: Clean (rendered in browser via Playwright, verified against design standards)
 
 ### Open Issues / Blockers
-- None. Ready for Phase 4: The AI (Adversarial learning, feature extraction, Mask Engine CMA-ES tuner, co-training loop, ablations with 95% CIs).
+- None. Ready for Phase 5: Evidence Report, Hardening, and Demo Mode.

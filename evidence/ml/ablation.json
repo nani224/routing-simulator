@@ -1,0 +1,173 @@
+{
+  "title": "PHANTOMNET Adversarial Censorship Defense Ablation Study",
+  "num_seeds": 5,
+  "seeds": [
+    42,
+    101,
+    2024,
+    777,
+    9999
+  ],
+  "results": {
+    "no_shaping": {
+      "censor_auc": {
+        "mean": 0.25,
+        "ci_95": 0.3725,
+        "low": 0.0,
+        "high": 0.6225
+      },
+      "f1_score": {
+        "mean": 0.6586,
+        "ci_95": 0.1994,
+        "low": 0.4592,
+        "high": 0.858
+      },
+      "bandwidth_overhead": {
+        "mean": 0.0,
+        "ci_95": 0.0,
+        "low": 0.0,
+        "high": 0.0
+      },
+      "latency_cost_ms": {
+        "mean": 0.0,
+        "ci_95": 0.0,
+        "low": 0.0,
+        "high": 0.0
+      },
+      "defender_reward": {
+        "mean": 0.75,
+        "ci_95": 0.3725,
+        "low": 0.3775,
+        "high": 1.1225
+      }
+    },
+    "random_shaping": {
+      "censor_auc": {
+        "mean": 0.2,
+        "ci_95": 0.1515,
+        "low": 0.0485,
+        "high": 0.3515
+      },
+      "f1_score": {
+        "mean": 0.3752,
+        "ci_95": 0.2056,
+        "low": 0.1696,
+        "high": 0.5808
+      },
+      "bandwidth_overhead": {
+        "mean": 0.1463,
+        "ci_95": 0.0097,
+        "low": 0.1366,
+        "high": 0.156
+      },
+      "latency_cost_ms": {
+        "mean": 2.6361,
+        "ci_95": 0.0805,
+        "low": 2.5556,
+        "high": 2.7166
+      },
+      "defender_reward": {
+        "mean": 0.4362,
+        "ci_95": 0.004,
+        "low": 0.4322,
+        "high": 0.4402
+      }
+    },
+    "fixed_padding": {
+      "censor_auc": {
+        "mean": 0.2167,
+        "ci_95": 0.204,
+        "low": 0.0127,
+        "high": 0.4207
+      },
+      "f1_score": {
+        "mean": 0.4809,
+        "ci_95": 0.2793,
+        "low": 0.2017,
+        "high": 0.7602
+      },
+      "bandwidth_overhead": {
+        "mean": 2.1742,
+        "ci_95": 0.0961,
+        "low": 2.0781,
+        "high": 2.2703
+      },
+      "latency_cost_ms": {
+        "mean": 0.115,
+        "ci_95": 0.019,
+        "low": 0.0961,
+        "high": 0.134
+      },
+      "defender_reward": {
+        "mean": -0.3699,
+        "ci_95": 0.0384,
+        "low": 0.0,
+        "high": -0.3315
+      }
+    },
+    "learned_policy": {
+      "censor_auc": {
+        "mean": 0.3333,
+        "ci_95": 0.2423,
+        "low": 0.0911,
+        "high": 0.5756
+      },
+      "f1_score": {
+        "mean": 0.5309,
+        "ci_95": 0.1319,
+        "low": 0.399,
+        "high": 0.6629
+      },
+      "bandwidth_overhead": {
+        "mean": 0.1433,
+        "ci_95": 0.049,
+        "low": 0.0943,
+        "high": 0.1923
+      },
+      "latency_cost_ms": {
+        "mean": 3.7766,
+        "ci_95": 1.545,
+        "low": 2.2316,
+        "high": 5.3216
+      },
+      "defender_reward": {
+        "mean": 0.4351,
+        "ci_95": 0.0177,
+        "low": 0.4174,
+        "high": 0.4528
+      }
+    },
+    "learned_vs_retrained": {
+      "censor_auc": {
+        "mean": 0.4833,
+        "ci_95": 0.1819,
+        "low": 0.3014,
+        "high": 0.6652
+      },
+      "f1_score": {
+        "mean": 0.6457,
+        "ci_95": 0.1818,
+        "low": 0.4639,
+        "high": 0.8275
+      },
+      "bandwidth_overhead": {
+        "mean": 0.1433,
+        "ci_95": 0.049,
+        "low": 0.0943,
+        "high": 0.1923
+      },
+      "latency_cost_ms": {
+        "mean": 3.7766,
+        "ci_95": 1.545,
+        "low": 2.2316,
+        "high": 5.3216
+      },
+      "defender_reward": {
+        "mean": 0.4594,
+        "ci_95": 0.173,
+        "low": 0.2864,
+        "high": 0.6323
+      }
+    }
+  }
+}
