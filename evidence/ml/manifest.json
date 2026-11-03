@@ -1,0 +1,23 @@
+{
+  "dataset_name": "PHANTOMNET_REAL_TRAFFIC_60SITES",
+  "num_sites": 60,
+  "categories": [
+    "video",
+    "tech",
+    "news",
+    "shopping",
+    "collab"
+  ],
+  "flows_per_class_per_site": 20,
+  "total_flows": 2400,
+  "total_tunnel_flows": 1200,
+  "total_direct_flows": 1200,
+  "seed": 42,
+  "commit": "2f8985dfdb19ed87cc28f661e1101c0214cab4dd",
+  "timestamp": "2026-11-03T03:02:46.459405+00:00",
+  "site_split": {
+    "train_sites_count": 40,
+    "val_sites_count": 10,
+    "test_sites_count": 10
+  }
+}

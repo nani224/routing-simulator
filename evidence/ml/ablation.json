@@ -1,5 +1,6 @@
 {
-  "title": "PHANTOMNET Adversarial Censorship Defense Ablation Study",
+  "title": "PHANTOMNET Real Traffic Adversarial Censorship Defense Ablation Study",
+  "dataset_name": "PHANTOMNET_REAL_TRAFFIC_60SITES",
   "num_seeds": 5,
   "seeds": [
     42,
@@ -8,19 +9,29 @@
     777,
     9999
   ],
+  "site_split": {
+    "train": 40,
+    "val": 10,
+    "test": 10
+  },
+  "flows_evaluated_per_seed": {
+    "train": 1600,
+    "val": 400,
+    "test": 400
+  },
   "results": {
     "no_shaping": {
       "censor_auc": {
-        "mean": 0.25,
-        "ci_95": 0.3725,
-        "low": 0.0,
-        "high": 0.6225
+        "mean": 1.0,
+        "ci_95": 0.0,
+        "low": 1.0,
+        "high": 1.0
       },
       "f1_score": {
-        "mean": 0.6586,
-        "ci_95": 0.1994,
-        "low": 0.4592,
-        "high": 0.858
+        "mean": 1.0,
+        "ci_95": 0.0,
+        "low": 1.0,
+        "high": 1.0
       },
       "bandwidth_overhead": {
         "mean": 0.0,
@@ -35,139 +46,153 @@
         "high": 0.0
       },
       "defender_reward": {
-        "mean": 0.75,
-        "ci_95": 0.3725,
-        "low": 0.3775,
-        "high": 1.1225
+        "mean": 0.0,
+        "ci_95": 0.0,
+        "low": 0.0,
+        "high": 0.0
       }
     },
     "random_shaping": {
       "censor_auc": {
-        "mean": 0.2,
-        "ci_95": 0.1515,
-        "low": 0.0485,
-        "high": 0.3515
+        "mean": 1.0,
+        "ci_95": 0.0,
+        "low": 1.0,
+        "high": 1.0
       },
       "f1_score": {
-        "mean": 0.3752,
-        "ci_95": 0.2056,
-        "low": 0.1696,
-        "high": 0.5808
+        "mean": 0.7722,
+        "ci_95": 0.0322,
+        "low": 0.74,
+        "high": 0.8043
       },
       "bandwidth_overhead": {
-        "mean": 0.1463,
-        "ci_95": 0.0097,
-        "low": 0.1366,
-        "high": 0.156
+        "mean": 0.2582,
+        "ci_95": 0.0081,
+        "low": 0.2501,
+        "high": 0.2662
       },
       "latency_cost_ms": {
-        "mean": 2.6361,
-        "ci_95": 0.0805,
-        "low": 2.5556,
-        "high": 2.7166
+        "mean": 2.8019,
+        "ci_95": 0.0403,
+        "low": 2.7616,
+        "high": 1.0
       },
       "defender_reward": {
-        "mean": 0.4362,
-        "ci_95": 0.004,
-        "low": 0.4322,
-        "high": 0.4402
+        "mean": 0.3911,
+        "ci_95": 0.0032,
+        "low": 0.3879,
+        "high": 0.3943
       }
     },
     "fixed_padding": {
       "censor_auc": {
-        "mean": 0.2167,
-        "ci_95": 0.204,
-        "low": 0.0127,
-        "high": 0.4207
+        "mean": 1.0,
+        "ci_95": 0.0,
+        "low": 1.0,
+        "high": 1.0
       },
       "f1_score": {
-        "mean": 0.4809,
-        "ci_95": 0.2793,
-        "low": 0.2017,
-        "high": 0.7602
+        "mean": 0.0,
+        "ci_95": 0.0,
+        "low": 0.0,
+        "high": 0.0
       },
       "bandwidth_overhead": {
-        "mean": 2.1742,
-        "ci_95": 0.0961,
-        "low": 2.0781,
-        "high": 2.2703
+        "mean": 3.0008,
+        "ci_95": 0.0388,
+        "low": 2.962,
+        "high": 1.0
       },
       "latency_cost_ms": {
-        "mean": 0.115,
-        "ci_95": 0.019,
-        "low": 0.0961,
-        "high": 0.134
+        "mean": 0.3142,
+        "ci_95": 0.0067,
+        "low": 0.3076,
+        "high": 0.3209
       },
       "defender_reward": {
-        "mean": -0.3699,
-        "ci_95": 0.0384,
+        "mean": -0.7009,
+        "ci_95": 0.0155,
         "low": 0.0,
-        "high": -0.3315
+        "high": -0.6854
       }
     },
     "learned_policy": {
       "censor_auc": {
-        "mean": 0.3333,
-        "ci_95": 0.2423,
-        "low": 0.0911,
-        "high": 0.5756
+        "mean": 1.0,
+        "ci_95": 0.0,
+        "low": 1.0,
+        "high": 1.0
       },
       "f1_score": {
-        "mean": 0.5309,
-        "ci_95": 0.1319,
-        "low": 0.399,
-        "high": 0.6629
+        "mean": 0.318,
+        "ci_95": 0.0951,
+        "low": 0.2229,
+        "high": 0.4131
       },
       "bandwidth_overhead": {
-        "mean": 0.1433,
-        "ci_95": 0.049,
-        "low": 0.0943,
-        "high": 0.1923
+        "mean": 0.2275,
+        "ci_95": 0.0572,
+        "low": 0.1703,
+        "high": 0.2847
       },
       "latency_cost_ms": {
-        "mean": 3.7766,
-        "ci_95": 1.545,
-        "low": 2.2316,
-        "high": 5.3216
+        "mean": 3.8711,
+        "ci_95": 1.1571,
+        "low": 2.714,
+        "high": 1.0
       },
       "defender_reward": {
-        "mean": 0.4351,
-        "ci_95": 0.0177,
-        "low": 0.4174,
-        "high": 0.4528
+        "mean": 0.4012,
+        "ci_95": 0.0237,
+        "low": 0.3775,
+        "high": 0.425
       }
     },
     "learned_vs_retrained": {
       "censor_auc": {
-        "mean": 0.4833,
-        "ci_95": 0.1819,
-        "low": 0.3014,
-        "high": 0.6652
+        "mean": 1.0,
+        "ci_95": 0.0,
+        "low": 1.0,
+        "high": 1.0
       },
       "f1_score": {
-        "mean": 0.6457,
-        "ci_95": 0.1818,
-        "low": 0.4639,
-        "high": 0.8275
+        "mean": 1.0,
+        "ci_95": 0.0,
+        "low": 1.0,
+        "high": 1.0
       },
       "bandwidth_overhead": {
-        "mean": 0.1433,
-        "ci_95": 0.049,
-        "low": 0.0943,
-        "high": 0.1923
+        "mean": 0.2275,
+        "ci_95": 0.0572,
+        "low": 0.1703,
+        "high": 0.2847
       },
       "latency_cost_ms": {
-        "mean": 3.7766,
-        "ci_95": 1.545,
-        "low": 2.2316,
-        "high": 5.3216
+        "mean": 3.8711,
+        "ci_95": 1.1571,
+        "low": 2.714,
+        "high": 1.0
       },
       "defender_reward": {
-        "mean": 0.4594,
-        "ci_95": 0.173,
-        "low": 0.2864,
-        "high": 0.6323
+        "mean": -0.1684,
+        "ci_95": 0.0374,
+        "low": 0.0,
+        "high": -0.131
       }
+    }
+  },
+  "paired_comparisons": {
+    "learned_vs_no_shaping": {
+      "mean_auc_diff": 0.0,
+      "t_statistic": NaN,
+      "p_value": NaN,
+      "statistically_significant": false
+    },
+    "learned_vs_random": {
+      "mean_auc_diff": 0.0,
+      "t_statistic": NaN,
+      "p_value": NaN,
+      "statistically_significant": false
     }
   }
 }

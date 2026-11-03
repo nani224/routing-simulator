@@ -2,41 +2,41 @@
   {
     "regime": "no_shaping",
     "bandwidth_overhead_pct": 0.0,
-    "stealth_score": 0.75,
-    "censor_auc": 0.25,
-    "auc_ci_95": 0.3725,
-    "reward": 0.75
+    "stealth_score": 0.0,
+    "censor_auc": 1.0,
+    "auc_ci_95": 0.0,
+    "reward": 0.0
   },
   {
     "regime": "random_shaping",
-    "bandwidth_overhead_pct": 14.63,
-    "stealth_score": 0.8,
-    "censor_auc": 0.2,
-    "auc_ci_95": 0.1515,
-    "reward": 0.4362
+    "bandwidth_overhead_pct": 25.82,
+    "stealth_score": 0.0,
+    "censor_auc": 1.0,
+    "auc_ci_95": 0.0,
+    "reward": 0.3911
   },
   {
     "regime": "fixed_padding",
-    "bandwidth_overhead_pct": 217.42,
-    "stealth_score": 0.7833,
-    "censor_auc": 0.2167,
-    "auc_ci_95": 0.204,
-    "reward": -0.3699
+    "bandwidth_overhead_pct": 300.08,
+    "stealth_score": 0.0,
+    "censor_auc": 1.0,
+    "auc_ci_95": 0.0,
+    "reward": -0.7009
   },
   {
     "regime": "learned_policy",
-    "bandwidth_overhead_pct": 14.33,
-    "stealth_score": 0.6667,
-    "censor_auc": 0.3333,
-    "auc_ci_95": 0.2423,
-    "reward": 0.4351
+    "bandwidth_overhead_pct": 22.75,
+    "stealth_score": 0.0,
+    "censor_auc": 1.0,
+    "auc_ci_95": 0.0,
+    "reward": 0.4012
   },
   {
     "regime": "learned_vs_retrained",
-    "bandwidth_overhead_pct": 14.33,
-    "stealth_score": 0.5167,
-    "censor_auc": 0.4833,
-    "auc_ci_95": 0.1819,
-    "reward": 0.4594
+    "bandwidth_overhead_pct": 22.75,
+    "stealth_score": 0.0,
+    "censor_auc": 1.0,
+    "auc_ci_95": 0.0,
+    "reward": -0.1684
   }
 ]

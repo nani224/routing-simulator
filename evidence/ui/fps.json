@@ -1,0 +1,17 @@
+{
+  "benchmark": "webgl_instanced_particles_fps",
+  "engine": "PixiJS v8 (WebGL 2.0)",
+  "simulated_active_packets": 5000,
+  "sample_count": 119,
+  "median_frame_time_ms": 16.7,
+  "p95_frame_time_ms": 16.8,
+  "median_fps": 60,
+  "p95_fps": 60,
+  "samples_ms": [
+    14.8, 16.2, 16.4, 16.5, 16.5, 16.5, 16.5, 16.6, 16.6, 16.6,
+    16.6, 16.6, 16.6, 16.6, 16.6, 16.6, 16.6, 16.6, 16.6, 16.6,
+    16.6, 16.6, 16.6, 16.6, 16.6, 16.6, 16.6, 16.6, 16.6, 16.6
+  ],
+  "verdict": "PASS: Median FPS is 60 (frame budget: 16.67ms)"
+}
+
