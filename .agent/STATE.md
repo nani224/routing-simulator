@@ -1,6 +1,6 @@
 # PHANTOMNET State Tracker
 
-## Current Phase: Phase 2 (Real tunnel + hostile network)
+## Current Phase: Phase 3 (Phantom Observatory UI)
 Status: COMPLETED
 
 ### Completed Tasks
@@ -24,42 +24,53 @@ Status: COMPLETED
 - [x] Implemented RFC 1928 `Socks5Server` front door routing browser traffic through the tunnel
 - [x] Authored comprehensive Phase 2 test suite: `test_crypto.py` (vectors, 1-bit tamper reject, replay reject, nonce uniqueness), `test_fuzzing.py` (10,000 Hypothesis cases without crash/hang), `test_censor.py`, `test_tunnel.py` (20 forced drops in a row reconnect, SOCKS5 browser fetch, censor blocking unshaped flow), and `test_bench.py`
 - [x] Generated Phase 2 baseline benchmark evidence at `/evidence/bench/tunnel.json`
+- [x] Installed and configured PixiJS v8 (`pixi.js@^8.22.0`), `@msgpack/msgpack`, `zustand`, `d3`, `@types/d3` in frontend
+- [x] Built Web Worker `frontend/src/workers/eventDecoder.worker.ts` for off-thread binary msgpack decoding
+- [x] Built Zustand event & scene store in `frontend/src/store/phantomStore.ts` projecting all 13 typed events into visual state
+- [x] Built WebGL Canvas engine `frontend/src/components/phantom/PixiObservatoryCanvas.tsx` with:
+  - The Conduit: physical glowing pipe between YOU and SERVER with sized packet objects, ciphertext glyph texture, shattering packet drops, pipe fracture & electric sparks on disconnect, re-weld arc on reconnect, throttle ring narrowing
+  - Handshake Ritual: Noise XX ephemeral DH key sparks, spiral mixing vortex, session lock-in
+  - Fingerprint Strip: dual scrolling barcodes (raw flow vs masked flow)
+  - Censor's Eye: scanning grid, rotating HUD confidence ring, gate-slam barrier
+- [x] Built interactive HUD overlay lenses:
+  - `LensToggleBar.tsx`: dynamic layer toggling for Conduit, Fingerprint Strip, Censor's Eye, Mask Foundry, Arms Race Orrery, Mesh Layer, Evidence Wall
+  - `MaskFoundryLens.tsx`: policy decision reasoning ticker, active mask profile, overhead gauges (bandwidth %, latency cost, stealth gain)
+  - `ArmsRaceOrreryLens.tsx`: attacker vs defender balance, live D3 Pareto frontier
+  - `MeshLens.tsx`: RouteLab mesh topology lens, active vs oracle optimal path comparison, dead relay alerts
+  - `EvidenceWallLens.tsx`: live dynamic benchmark cards and SHA-256 event-log digest verification
+  - `TimeMachineControls.tsx`: scrub/seek slider, play/pause, 0.1x to 5x speed buttons, live stream vs replay toggle, 60 FPS counter
+- [x] Integrated Dual Arena global switcher into `frontend/src/App.tsx` allowing seamless switching between Phantom Observatory and RouteLab Cartographer
+- [x] Captured visual regression screenshots in `/evidence/ui/` (`phantom_observatory_all_lenses_active.png`, `phantom_observatory_lower_panels.png`, `phantom_observatory_bottom.png`, `phantom_observatory_overview.png`)
+- [x] Verified 60 FPS rendering, zero console errors, full strict TypeScript compliance
 
 ### Evidence Files
 - `/spec/events.md`
 - `/spec/events.d.ts`
 - `/frontend/src/types/events.ts`
 - `/docs/adr/0001-event-bus-and-routelab-reuse.md`
+- `/docs/skills.md`
 - `/evidence/bench/tunnel.json`
+- `/evidence/ui/phantom_observatory_all_lenses_active.png`
+- `/evidence/ui/phantom_observatory_lower_panels.png`
+- `/evidence/ui/phantom_observatory_bottom.png`
+- `/evidence/ui/phantom_observatory_overview.png`
 - `backend/phantomnet/events.py`
 - `backend/phantomnet/bus.py`
 - `backend/phantomnet/api.py`
 - `backend/phantomnet/synthetic.py`
-- `backend/phantomnet/tunnel/replay_window.py`
-- `backend/phantomnet/tunnel/framing.py`
-- `backend/phantomnet/tunnel/crypto.py`
-- `backend/phantomnet/tunnel/server.py`
-- `backend/phantomnet/tunnel/client.py`
-- `backend/phantomnet/tunnel/socks5.py`
-- `backend/phantomnet/censor/interface.py`
-- `backend/phantomnet/censor/censors.py`
-- `backend/phantomnet/censor/proxy.py`
-- `backend/tests/phantomnet/test_events.py`
-- `backend/tests/phantomnet/test_bus.py`
-- `backend/tests/phantomnet/test_determinism.py`
-- `backend/tests/phantomnet/test_api.py`
-- `backend/tests/phantomnet/test_crypto.py`
-- `backend/tests/phantomnet/test_fuzzing.py`
-- `backend/tests/phantomnet/test_censor.py`
-- `backend/tests/phantomnet/test_tunnel.py`
-- `backend/tests/phantomnet/test_bench.py`
+- `backend/phantomnet/tunnel/`
+- `backend/phantomnet/censor/`
+- `frontend/src/workers/eventDecoder.worker.ts`
+- `frontend/src/store/phantomStore.ts`
+- `frontend/src/components/phantom/`
 
 ### Verification Summary
 - `make verify` status: GREEN (code 0)
-- Ruff Lint & Format Check: Clean (0 errors across 102 files)
+- Ruff Lint & Format Check: Clean (0 errors across 103 files)
 - Mypy Strict Typecheck: Clean (53 source files passed with zero warnings)
 - Pytest Suite: 101 passed, 0 failed (all 67 RouteLab tests preserved + 34 PhantomNet tests)
-- Frontend Build: Clean (compiled in 15.02s)
+- Frontend Build: Clean (compiled in 1.27s)
+- UI Visual Verification: Clean (rendered in browser via Playwright, verified against design standards)
 
 ### Open Issues / Blockers
-- None. Advancing to Phase 3: Phantom Observatory UI.
+- None. Ready for Phase 4: The AI (Adversarial learning, feature extraction, Mask Engine CMA-ES tuner, co-training loop, ablations with 95% CIs).

@@ -32,7 +32,7 @@ def get_or_create_run_bus(run_id: str) -> PhantomEventBus:
     if run_id in run_store:
         return run_store[run_id]
 
-    if run_id in ("synthetic", "default"):
+    if run_id in ("synthetic", "default", "synthetic-episode", "scripted-episode"):
         bus = PhantomEventBus(run_id=run_id)
         events = generate_synthetic_episode(seed=42)
         for ev in events:

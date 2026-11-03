@@ -21,6 +21,7 @@ import { VirtualizedPacketLog } from './components/VirtualizedPacketLog';
 import { ExportModal } from './components/ExportModal';
 import { ExplainModeModal } from './components/ExplainModeModal';
 import { SettingsModal } from './components/SettingsModal';
+import { PhantomObservatory } from './components/phantom/PhantomObservatory';
 import { AlertTriangle, RotateCcw } from 'lucide-react';
 
 interface HistoricalSnapshot {
@@ -31,6 +32,9 @@ interface HistoricalSnapshot {
 }
 
 export const App: React.FC = () => {
+  // Dual Arena state (PhantomNet vs RouteLab)
+  const [appMode, setAppMode] = useState<'phantomnet' | 'routelab'>('phantomnet');
+
   // Theme state
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
 
@@ -986,7 +990,71 @@ export const App: React.FC = () => {
         position: 'relative',
       }}
     >
-      {/* 1. Top Instrument Bar */}
+      {/* Dual Arena Global Switcher */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '6px 16px',
+          background: '#040609',
+          borderBottom: '1px solid #1a2233',
+          zIndex: 50,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#00f3ff', display: 'inline-block' }} />
+          <span style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '12px', color: '#00f3ff', letterSpacing: '1px' }}>
+            PHANTOMNET / ROUTELAB DUAL ARENA
+          </span>
+        </div>
+        <div style={{ display: 'flex', gap: '6px', background: '#0d131f', padding: '3px', borderRadius: '8px', border: '1px solid #1e293b' }}>
+          <button
+            onClick={() => setAppMode('phantomnet')}
+            style={{
+              padding: '4px 12px',
+              borderRadius: '6px',
+              fontFamily: 'monospace',
+              fontSize: '11px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              border: appMode === 'phantomnet' ? '1px solid rgba(0, 243, 255, 0.5)' : '1px solid transparent',
+              background: appMode === 'phantomnet' ? '#141e2e' : 'transparent',
+              color: appMode === 'phantomnet' ? '#00f3ff' : '#94a3b8',
+              boxShadow: appMode === 'phantomnet' ? '0 0 10px rgba(0, 243, 255, 0.25)' : 'none',
+              transition: 'all 0.2s',
+            }}
+          >
+            ⬡ PHANTOM OBSERVATORY
+          </button>
+          <button
+            onClick={() => setAppMode('routelab')}
+            style={{
+              padding: '4px 12px',
+              borderRadius: '6px',
+              fontFamily: 'monospace',
+              fontSize: '11px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              border: appMode === 'routelab' ? '1px solid rgba(56, 189, 248, 0.5)' : '1px solid transparent',
+              background: appMode === 'routelab' ? '#141e2e' : 'transparent',
+              color: appMode === 'routelab' ? '#38bdf8' : '#94a3b8',
+              boxShadow: appMode === 'routelab' ? '0 0 10px rgba(56, 189, 248, 0.25)' : 'none',
+              transition: 'all 0.2s',
+            }}
+          >
+            ROUTELAB SIMULATOR
+          </button>
+        </div>
+      </div>
+
+      {appMode === 'phantomnet' ? (
+        <div style={{ flex: 1, overflowY: 'auto' }}>
+          <PhantomObservatory />
+        </div>
+      ) : (
+        <>
+          {/* 1. Top Instrument Bar */}
       <InstrumentBar
         currentTopologyName={currentTopologyName}
         onSelectTopology={setCurrentTopologyName}
@@ -1195,6 +1263,8 @@ export const App: React.FC = () => {
         wsUrl={wsUrl}
         onUpdateWsUrl={setWsUrl}
       />
+        </>
+      )}
     </div>
   );
 };
