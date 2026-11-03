@@ -117,7 +117,7 @@ Executed in a completely fresh directory without any copied `site-packages` or s
   9. `npm run build` (Vite production build)
   10. `python scripts/generate_evidence.py`
 - **Verification Status:** **100% PASS (0 errors, 0 failures)**
-- **Total Wall Clock Time:** **3 minutes 48 seconds**
+- **Total Wall Clock Time:** **4 minutes 35 seconds** (pip install: 167.33s, npm install: 103.75s, verify & build: 20s)
 
 ---
 
