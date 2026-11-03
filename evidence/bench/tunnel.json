@@ -1,7 +1,7 @@
 {
   "benchmark": "tunnel_baseline",
-  "timestamp": 1793683932.1574342,
-  "commit_hash": "a2584862d6440024a4dfa25a60020e6d9d2ea669",
+  "timestamp": 1793701550.1726522,
+  "commit_hash": "5f2329fd2dde8961d45e1bc2b5d1b1f2ba7d57a5",
   "seed": 42,
   "machine_info": {
     "os": "Windows",
@@ -13,10 +13,10 @@
     "python_version": "3.13.11"
   },
   "metrics": {
-    "handshake_latency_ms": 11.079,
+    "handshake_latency_ms": 27.174,
     "rekey_latency_ms": 0.201,
-    "average_rtt_latency_ms": 0.834,
-    "throughput_mbps": 157.18,
+    "average_rtt_latency_ms": 0.623,
+    "throughput_mbps": 210.3,
     "chunks_transferred": 200,
     "total_bytes_transferred": 3276800
   }

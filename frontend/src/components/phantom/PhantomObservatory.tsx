@@ -378,6 +378,22 @@ export const PhantomObservatory: React.FC = () => {
             <p className="po-subtitle">
               Stealth Encrypted Tunnel &amp; Adversarial Censorship Defense Telemetry
             </p>
+            <div
+              style={{
+                display: "inline-block",
+                marginTop: 4,
+                padding: "2px 8px",
+                borderRadius: 4,
+                backgroundColor: "rgba(255, 184, 0, 0.15)",
+                border: "1px solid rgba(255, 184, 0, 0.5)",
+                color: "#ffb800",
+                fontSize: 10,
+                fontWeight: 700,
+                letterSpacing: "0.05em",
+              }}
+            >
+              ILLUSTRATIVE SCRIPTED EPISODE (synthetic generator)
+            </div>
           </div>
         </div>
 

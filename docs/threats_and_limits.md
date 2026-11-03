@@ -52,7 +52,7 @@ PHANTOMNET is an experimental research platform, adversarial testbed, and protoc
   2. `RandomForestCensor`: 42-dimensional statistical metadata feature extractor.
   3. `OneDCNNCensor`: Temporal convolutional sequence classifier.
   4. `AdaptiveCensor`: Online moving-average score accumulator with dynamic retraining.
-- **No claim of universal stealth is made.** A censor deploying an unmodeled classifier (e.g., deep Transformer models trained on terabytes of live ISP captures, or multi-modal timing-volume correlations) may detect shaped flows.
+- **No claim of universal stealth is made (unsupported; evidence/ml).** A censor deploying an unmodeled classifier does not guarantee evasion and may detect shaped flows (e.g., deep Transformer models trained on terabytes of live ISP captures, or multi-modal timing-volume correlations).
 
 ### 3.3 No Kernel Killswitch (Fail-Open Risk)
 - Commercial VPN clients install kernel network filter drivers (WFP on Windows, `iptables`/`nftables` on Linux, pf on macOS) that hard-block all outgoing traffic if the tunnel drops.
@@ -65,8 +65,8 @@ PHANTOMNET is an experimental research platform, adversarial testbed, and protoc
 - WebRTC STUN/TURN queries executed within client browsers can bypass SOCKS5 proxies and reveal the client's public IP address.
 
 ### 3.5 The Retrained Censor Arms Race
-- As demonstrated in our 5-seed ablation study:
-  - Against a **static** censor, the learned policy reduces censor detection AUC to **0.3333 ± 0.2423**.
-  - However, against an **adversarially retrained** censor (where the adversary retrains on flows shaped by the learned policy), the censor's AUC recovers to **0.4833 ± 0.1819** (F1 = 0.6457).
-- Traffic morphing is an **arms race**, not a static victory. Mask policies must continuously adapt and co-evolve as the adversary updates their detection models.
+- As demonstrated in our 10-seed ablation study (evidence/ml, ROOT_CAUSE.md):
+  - Against a **static** censor, the learned empirical morphing policy achieves modest variation in detection metrics (`AUC = 0.9981`, `TPR@1%FPR = 0.9950`), but does not achieve statistically significant evasion over random shaping (paired t-test $p = 0.194$).
+  - When the adversary **retrains** on shaped flows, the censor recovers full detection accuracy (`AUC = 1.0000`, `TPR@1%FPR = 1.0000`).
+- Traffic morphing is an **arms race**, not a static victory. Static feature masking provides transient evasion against frozen models, but does not survive adversarial retraining.
 

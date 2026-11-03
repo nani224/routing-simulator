@@ -2,7 +2,7 @@
   {
     "regime": "no_shaping",
     "bandwidth_overhead_pct": 0.0,
-    "latency_cost_ms": 0.0,
+    "latency_cost_ms": 0.145,
     "static_auc": 1.0,
     "retrained_auc": 1.0,
     "static_tpr_at_1pct_fpr": 1.0,
@@ -10,8 +10,8 @@
   },
   {
     "regime": "random_shaping",
-    "bandwidth_overhead_pct": 37.39,
-    "latency_cost_ms": 2.466,
+    "bandwidth_overhead_pct": 52.99,
+    "latency_cost_ms": 9.256,
     "static_auc": 1.0,
     "retrained_auc": 1.0,
     "static_tpr_at_1pct_fpr": 1.0,
@@ -19,20 +19,20 @@
   },
   {
     "regime": "fixed_padding",
-    "bandwidth_overhead_pct": 289.1,
-    "latency_cost_ms": 0.0,
+    "bandwidth_overhead_pct": 195.05,
+    "latency_cost_ms": 0.145,
     "static_auc": 1.0,
     "retrained_auc": 1.0,
     "static_tpr_at_1pct_fpr": 1.0,
     "retrained_tpr_at_1pct_fpr": 1.0
   },
   {
-    "regime": "learned_policy",
-    "bandwidth_overhead_pct": 34.85,
-    "latency_cost_ms": 1.838,
-    "static_auc": 0.9984,
+    "regime": "morphing_tuned",
+    "bandwidth_overhead_pct": 63.71,
+    "latency_cost_ms": 3.798,
+    "static_auc": 0.9981,
     "retrained_auc": 1.0,
-    "static_tpr_at_1pct_fpr": 0.996,
+    "static_tpr_at_1pct_fpr": 0.995,
     "retrained_tpr_at_1pct_fpr": 1.0
   }
 ]

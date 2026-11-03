@@ -1,0 +1,285 @@
+{
+  "histograms": {
+    "size_bins": [
+      0,
+      100,
+      250,
+      500,
+      800,
+      1200,
+      1500,
+      4000,
+      16384
+    ],
+    "gap_bins": [
+      0.0,
+      0.5,
+      1.0,
+      2.0,
+      5.0,
+      10.0,
+      50.0,
+      100.0
+    ],
+    "tls": {
+      "tx_size_counts": [
+        200,
+        400,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "rx_size_counts": [
+        238,
+        157,
+        372,
+        823,
+        570,
+        1678,
+        123,
+        0
+      ],
+      "gap_counts": [
+        240,
+        922,
+        383,
+        123,
+        115,
+        2777,
+        1
+      ],
+      "tx_mean": 170.13333333333333,
+      "rx_mean": 989.5594546831608,
+      "gap_mean_ms": 9.893558210918659
+    },
+    "tunnel": {
+      "tx_size_counts": [
+        400,
+        200,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "rx_size_counts": [
+        222,
+        135,
+        392,
+        790,
+        487,
+        1608,
+        199,
+        0
+      ],
+      "gap_counts": [
+        773,
+        211,
+        13,
+        5,
+        4,
+        3424,
+        3
+      ],
+      "tx_mean": 89.8,
+      "rx_mean": 998.910774849987,
+      "gap_mean_ms": 12.087275885404917
+    }
+  },
+  "ks_statistics_top10": [
+    {
+      "feature": "tx_size_bin_0",
+      "ks_statistic": 1.0,
+      "p_value": 1.9426434495222354e-119,
+      "tls_mean": 0.3333,
+      "tun_mean": 0.6667
+    },
+    {
+      "feature": "tx_size_bin_2",
+      "ks_statistic": 1.0,
+      "p_value": 1.9426434495222354e-119,
+      "tls_mean": 0.6667,
+      "tun_mean": 0.3333
+    },
+    {
+      "feature": "tx_mean",
+      "ks_statistic": 1.0,
+      "p_value": 1.9426434495222354e-119,
+      "tls_mean": 0.1134,
+      "tun_mean": 0.0599
+    },
+    {
+      "feature": "tx_std",
+      "ks_statistic": 1.0,
+      "p_value": 1.9426434495222354e-119,
+      "tls_mean": 0.0689,
+      "tun_mean": 0.0404
+    },
+    {
+      "feature": "rx_size_bin_0",
+      "ks_statistic": 0.92,
+      "p_value": 2.9425834050810276e-91,
+      "tls_mean": 0.0956,
+      "tun_mean": 0.0082
+    },
+    {
+      "feature": "rx_size_bin_1",
+      "ks_statistic": 0.775,
+      "p_value": 1.5352004816599898e-59,
+      "tls_mean": 0.0358,
+      "tun_mean": 0.1219
+    },
+    {
+      "feature": "rx_size_bin_4",
+      "ks_statistic": 0.635,
+      "p_value": 3.509090026610176e-38,
+      "tls_mean": 0.2472,
+      "tun_mean": 0.2289
+    },
+    {
+      "feature": "rx_std",
+      "ks_statistic": 0.52,
+      "p_value": 4.894901209447945e-25,
+      "tls_mean": 0.1928,
+      "tun_mean": 0.1205
+    },
+    {
+      "feature": "gap_bin_2",
+      "ks_statistic": 0.495,
+      "p_value": 1.2936013442355648e-22,
+      "tls_mean": 0.0347,
+      "tun_mean": 0.0015
+    },
+    {
+      "feature": "gap_bin_1",
+      "ks_statistic": 0.425,
+      "p_value": 1.3969162950232394e-16,
+      "tls_mean": 0.0427,
+      "tun_mean": 0.002
+    }
+  ],
+  "permutation_importance_top10": [
+    {
+      "feature": "tx_size_bin_0",
+      "importance_mean": 0.0,
+      "importance_std": 0.0
+    },
+    {
+      "feature": "tx_size_bin_1",
+      "importance_mean": 0.0,
+      "importance_std": 0.0
+    },
+    {
+      "feature": "tx_size_bin_2",
+      "importance_mean": 0.0,
+      "importance_std": 0.0
+    },
+    {
+      "feature": "tx_size_bin_3",
+      "importance_mean": 0.0,
+      "importance_std": 0.0
+    },
+    {
+      "feature": "tx_size_bin_4",
+      "importance_mean": 0.0,
+      "importance_std": 0.0
+    },
+    {
+      "feature": "tx_size_bin_5",
+      "importance_mean": 0.0,
+      "importance_std": 0.0
+    },
+    {
+      "feature": "tx_size_bin_6",
+      "importance_mean": 0.0,
+      "importance_std": 0.0
+    },
+    {
+      "feature": "tx_size_bin_7",
+      "importance_mean": 0.0,
+      "importance_std": 0.0
+    },
+    {
+      "feature": "tx_size_bin_8",
+      "importance_mean": 0.0,
+      "importance_std": 0.0
+    },
+    {
+      "feature": "tx_size_bin_9",
+      "importance_mean": 0.0,
+      "importance_std": 0.0
+    }
+  ],
+  "controlled_experiments": [
+    {
+      "variable": "baseline_unshaped",
+      "description": "Raw live socket capture without modification",
+      "auc": 1.0,
+      "ci_95": [
+        1.0,
+        1.0
+      ],
+      "ci_display": "degenerate (10 sites, perfect separation)",
+      "is_artifact": false
+    },
+    {
+      "variable": "equalized_framing_overhead",
+      "description": "Adjust tunnel wire frame header (24B) to match TLS 1.3 record header (22B)",
+      "auc": 1.0,
+      "ci_95": [
+        1.0,
+        1.0
+      ],
+      "ci_display": "degenerate (10 sites, perfect separation)",
+      "is_artifact": true
+    },
+    {
+      "variable": "read_buffer_clamped_1024",
+      "description": "Clamp all packet sizes to max buffer size 1024 bytes",
+      "auc": 1.0,
+      "ci_95": [
+        1.0,
+        1.0
+      ],
+      "ci_display": "degenerate (10 sites, perfect separation)",
+      "is_artifact": true
+    },
+    {
+      "variable": "read_buffer_clamped_4096",
+      "description": "Clamp all packet sizes to max buffer size 4096 bytes",
+      "auc": 1.0,
+      "ci_95": [
+        1.0,
+        1.0
+      ],
+      "ci_display": "degenerate (10 sites, perfect separation)",
+      "is_artifact": true
+    },
+    {
+      "variable": "read_buffer_clamped_16384",
+      "description": "Clamp all packet sizes to max buffer size 16384 bytes",
+      "auc": 1.0,
+      "ci_95": [
+        1.0,
+        1.0
+      ],
+      "ci_display": "degenerate (10 sites, perfect separation)",
+      "is_artifact": true
+    },
+    {
+      "variable": "handshake_removed",
+      "description": "First 4 handshake packets stripped (application data phase only)",
+      "auc": 1.0,
+      "ci_95": [
+        1.0,
+        1.0
+      ],
+      "ci_display": "degenerate (10 sites, perfect separation)",
+      "is_artifact": false
+    }
+  ]
+}

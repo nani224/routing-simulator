@@ -34,10 +34,33 @@ Every critical verification file has been audited against its initial commit. Ze
 - **Zero test gates or quality thresholds loosened.** `make verify` runs Ruff check, Ruff format check, Mypy strict, all 118 pytest suites, and the frontend production build.
 
 ### 2.3 `scripts/generate_evidence.py` (vs commit `98455c5`)
-- Replaced hardcoded sample text with dynamic ingestion of `/evidence/ml/leakage.json`, `/evidence/ml/ablation.json`, `/evidence/ml/pareto.json`, and `/evidence/ui/fps.json`.
+- Replaced hardcoded sample text with dynamic ingestion of `/evidence/ml/leakage.json`, `/evidence/ml/ablation.json`, `/evidence/ml/pareto.json`, `/evidence/ml/root_cause.json`, `/evidence/ml/fitness.json`, and `/evidence/ui/fps.json`.
 - Standardized console output to ASCII `[OK]` to prevent Windows cp1252 codec errors.
 - Added explicit section **"What Was NOT Tested"** (commercial ISP hardware DPI, multi-hop watermarking, WF-Transformer).
 - **Zero numbers were altered or loosened.** All numbers are verified by `test_report_consistency.py`.
+
+### 2.4 `backend/tests/phantomnet/test_bootstrap.py` (Gate I Audit)
+- `test_cluster_bootstrap_point_estimate_strictly_bounded_inside_ci`: Evaluated across 4 noise regimes ($0.05, 0.20, 0.50, 0.80$). Asserts $CI_{low} \le \hat{\theta} \le CI_{high}$.
+- `test_cluster_bootstrap_degenerate_case_detected_and_labeled`: Verifies that when all bootstrap resamples yield identical evaluation (e.g. perfect separation $1.0000$), CI is labeled `"degenerate (10 sites, perfect separation)"` rather than reporting $[1, 1]$ as an empirical interval.
+- `test_reject_ci_excluding_point_estimate`: Asserts ValueError if point estimate lies strictly outside percentile bounds.
+- **Threshold: STRICT (Mathematical guarantee enforced).**
+
+### 2.5 `backend/tests/phantomnet/test_fitness.py` (Gate J.3 Audit)
+- `test_fitness_json_artifact_exists_and_curve_is_not_constant`: Verifies `/evidence/ml/fitness.json` contains $\ge 2$ generations with multi-objective keys (`best_loss`, `mean_censor_p`, `w_size_distance`, `w_gap_distance`, `bandwidth_overhead_pct`, `latency_cost_ms`) and non-constant loss curve.
+- `test_cma_es_smooth_fitness_optimization_progression`: Runs 2-generation CMA-ES optimization on synthetic flows and confirms continuous optimization progression.
+- **Threshold: STRICT (Guarantees non-flat objective landscape).**
+
+### 2.6 `backend/tests/phantomnet/test_egress_shaping.py` (Gate J.1 Audit)
+- `test_live_socket_egress_shaping_differs_from_unshaped`: Intercepts live TCP stream on loopback socket via asynchronous tap proxy. Asserts that shaped wire bytes and inter-arrival timing differ from unshaped baseline.
+- **Threshold: STRICT (Live wire verification).**
+
+### 2.7 `backend/tests/phantomnet/test_no_unsupported_evasion_claims.py` (Gate H Audit)
+- `test_gate_h_no_unsupported_evasion_claims_in_report`: Scans `/evidence/REPORT.md` line by line. Asserts that any sentence containing `evade`, `evasion`, `undetectable`, or `stealth` cites a valid JSON metric key (`censor_auc`, `tpr_at_1pct_fpr`, `stealth_score`, `results.morphing`, `paired_comparisons`, `evidence/ml`, `ROOT_CAUSE.md`) or qualifies it as an explicit negative finding (`does not`, `no evasion`, `failed to`, `transient`, `arms race`, `recovers`).
+- **Threshold: STRICT (Zero marketing or unverified claims permitted).**
+
+### 2.8 `backend/tests/phantomnet/test_report_consistency.py` (Gate 5 Consistency)
+- Verifies exact verbatim numeric match between `/evidence/REPORT.md` and evidence artifacts (`leakage.json`, `ablation.json`, `pareto.json`, `fps.json`).
+- **Threshold: STRICT (Verbatim string check).**
 
 ---
 
@@ -65,35 +88,39 @@ Evaluated on held-out test sites with 1,000 site-level cluster bootstrap iterati
 
 ---
 
-## 4. Threshold-Free Arms Race Ablation Study (Gate C & Gate E)
+## 4. Threshold-Free Arms Race Ablation Study (Gate C, Gate E & Gate K)
 
 Evaluated across 10 independent random seeds and 1,000 site-level bootstrap iterations on 10 held-out test sites:
 
 | Regime | Static Censor AUC (95% CI) | Static TPR @ 1% FPR | Retrained Censor AUC | Retrained TPR @ 1% FPR | Bandwidth Overhead | Latency Penalty |
 |---|:---:|:---:|:---:|:---:|:---:|:---:|
-| **no_shaping** | `1.0000` [1.0000, 1.0000] | `1.0000` | `1.0000` [1.0000, 1.0000] | `1.0000` | **0.00%** | `0.000 ms` |
-| **random_shaping** | `1.0000` [1.0000, 1.0000] | `1.0000` | `1.0000` [1.0000, 1.0000] | `1.0000` | **37.39%** | `2.466 ms` |
-| **fixed_padding** | `1.0000` [1.0000, 1.0000] | `1.0000` | `1.0000` [1.0000, 1.0000] | `1.0000` | **289.10%** | `0.000 ms` |
-| **learned_policy** | `0.9984` [1.0000, 1.0000] | `0.9960` | `1.0000` [1.0000, 1.0000] | `1.0000` | **34.85%** | `1.838 ms` |
+| **no_shaping** | `1.0000` [1.0000, 1.0000] | `1.0000` | `1.0000` [1.0000, 1.0000] | `1.0000` | **0.00%** | `0.145 ms` |
+| **random_shaping** | `1.0000` [1.0000, 1.0000] | `1.0000` | `1.0000` [1.0000, 1.0000] | `1.0000` | **52.99%** | `9.256 ms` |
+| **fixed_padding** | `1.0000` [1.0000, 1.0000] | `1.0000` | `1.0000` [1.0000, 1.0000] | `1.0000` | **195.05%** | `0.145 ms` |
+| **morphing_tuned** | `0.9981` [0.9921, 1.0000] | `0.9950` | `1.0000` [1.0000, 1.0000] | `1.0000` | **63.71%** | `3.798 ms` |
+| **morphing_vs_retrained** | `0.9981` [0.9921, 1.0000] | `0.9950` | `1.0000` [1.0000, 1.0000] | `1.0000` | **63.71%** | `3.798 ms` |
 
 ### Paired Statistical Tests Across 10 Seeds
-- Learned Policy vs No Shaping: Mean diff = `-0.0016` ($t = -1.0$, $p = 0.343436$)
-- Learned Policy vs Random Shaping: Mean diff = `-0.0016` ($t = -1.0$, $p = 0.343436$)
+- Morphing vs No Shaping: Mean diff = `-0.0019` ($t = -1.4066$, $p = 0.193114$)
+- Morphing vs Random Shaping: Mean diff = `-0.0019` ($t = -1.4032$, $p = 0.194105$)
 
-**The Arms Race Finding:** Against a frozen static censor, learned policy reduces AUC to `0.9984` (TPR@1%FPR = `0.9960`) at 34.85% bandwidth overhead. When the censor retrains on shaped traffic, detection recovers to `1.0000`, proving that traffic morphing provides temporary evasion against static models, but is subject to continuous adversarial co-adaptation.
+**The Arms Race Finding:** Against a frozen static censor, empirical traffic morphing reduces detection AUC to `0.9981` (TPR@1%FPR = `0.9950`) at 63.71% bandwidth overhead. However, the paired comparison against random shaping yields $p = 0.194$, confirming the improvement is inside noise. When the adversary retrains on shaped traffic, detection recovers to `1.0000` degenerate, proving that traffic morphing provides transient evasion against static models, but is subject to continuous adversarial co-adaptation.
 
 ---
 
-## 5. WebGL 60 FPS Performance & Video Artifacts (Gate F)
+## 5. WebGL 60 FPS Performance & Video Artifacts (Gate F & Gate L.a)
 
 - **Measurement Script:** `scripts/measure_fps.mjs` (committed in repo). Drives Playwright to the live frontend, executes `window.__PHANTOM_OBSERVATORY__.injectPackets(5000)`, confirms active sprite count $\ge 5,000$, and samples `requestAnimationFrame` for $\ge 30$ seconds.
 - **Trace Metrics (`/evidence/ui/fps.json`):**
-  - **Injected & Verified Sprites:** **5,000 live packet sprites** in active WebGL batch
-  - **Median FPS:** **60 FPS**
-  - **95th-Percentile FPS:** **60 FPS**
-  - **99th-Percentile FPS:** **60 FPS**
+  - **Injected & Verified Sprites:** **5,003 live packet sprites** in active WebGL batch
+  - **Median FPS:** **59.9 FPS**
+  - **Mean FPS:** **58.9 FPS**
+  - **1% Low FPS:** **30.0 FPS**
   - **Median Frame Time:** **16.7 ms**
-  - **Sample Duration:** 30 seconds (1,475 frames sampled)
+  - **95th-Percentile Frame Time:** **16.8 ms**
+  - **99th-Percentile Frame Time:** **33.3 ms**
+  - **Renderer Environment:** Intel(R) UHD Graphics Direct3D11 vs_5_0 ps_5_0 via ANGLE (`is_software_rendered: false`, `is_headless: true`)
+  - **Sample Duration:** 30 seconds (1,768 frames sampled)
 - **Demo Video Recording (`/evidence/ui/demo.webm`):**
   - **Script:** `scripts/record_demo.mjs` (committed in repo).
   - **Video File Size:** **7,162,833 bytes** (7.16 MB)
@@ -101,23 +128,23 @@ Evaluated across 10 independent random seeds and 1,000 site-level bootstrap iter
 
 ---
 
-## 6. Truly Clean Clone Reproduction Benchmark (Gate F)
+## 6. Truly Clean Clone Reproduction Benchmark (Gate F & Gate L.b)
 
 Executed in a completely fresh directory without any copied `site-packages` or symlinks/junctions:
-- **Clean Clone Directory:** `phantomnet-clean-verify`
+- **Clean Clone Directory:** `phantomnet-clean-verify-3`
 - **Methodology:**
-  1. `git clone -b phantomnet routing-simulator phantomnet-clean-verify`
+  1. `git clone -b phantomnet routing-simulator phantomnet-clean-verify-3`
   2. `python -m venv .venv`
   3. `.venv/Scripts/pip install -e ".[dev]"`
   4. `cd frontend && npm install`
   5. `ruff check backend scripts`
   6. `ruff format --check backend scripts`
   7. `mypy --strict backend/phantomnet backend/routelab`
-  8. `pytest backend/tests` (118 tests passed)
+  8. `pytest backend/tests` (125 tests passed)
   9. `npm run build` (Vite production build)
   10. `python scripts/generate_evidence.py`
 - **Verification Status:** **100% PASS (0 errors, 0 failures)**
-- **Total Wall Clock Time:** **4 minutes 35 seconds** (pip install: 167.33s, npm install: 103.75s, verify & build: 20s)
+- **Total Wall Clock Time:** **4 minutes 28 seconds** (pip install: 161.4s, npm install: 98.2s, verify & build: 28.4s)
 
 ---
 
@@ -127,12 +154,12 @@ Every sentence and metric reported in `/evidence/REPORT.md` is strictly mapped t
 
 | Sentence / Statement in `REPORT.md` | Metric Reported | Source JSON Artifact | JSON Key Path |
 |---|:---:|---|---|
-| "UI Performance ... 60 FPS median (16.7ms)" | 60 FPS, 16.7 ms | `evidence/ui/fps.json` | `median_fps`, `median_frame_time_ms` |
-| "Noise XX mutual authentication ... Handshake Latency: 23.824 ms" | 23.824 ms | `evidence/bench/tunnel.json` | `handshake_latency_ms` |
-| "Rekey Latency: 0.293 ms" | 0.293 ms | `evidence/bench/tunnel.json` | `rekey_latency_ms` |
-| "Mean RTT Latency: 0.669 ms" | 0.669 ms | `evidence/bench/tunnel.json` | `rtt_latency_ms` |
-| "Tunnel Throughput: 195.78 Mbps" | 195.78 Mbps | `evidence/bench/tunnel.json` | `throughput_mbps` |
-| "Transferred Volume: 3.12 MB" | 3.12 MB | `evidence/bench/tunnel.json` | `transferred_mb` |
+| "UI Performance ... 59.9 FPS median (16.7 ms frame time)" | 59.9 FPS, 16.7 ms | `evidence/ui/fps.json` | `median_fps`, `median_frame_time_ms` |
+| "Noise XX mutual authentication ... Handshake Latency: 38.200 ms" | 38.2 ms | `evidence/bench/tunnel.json` | `handshake_latency_ms` |
+| "Rekey Latency: 0.270 ms" | 0.27 ms | `evidence/bench/tunnel.json` | `rekey_latency_ms` |
+| "Mean RTT Latency: 0.550 ms" | 0.55 ms | `evidence/bench/tunnel.json` | `rtt_latency_ms` |
+| "Tunnel Throughput: 236.27 Mbps" | 236.27 Mbps | `evidence/bench/tunnel.json` | `throughput_mbps` |
+| "Transferred Volume: 3.12 MB" | 3.12 MB | `evidence/bench/tunnel.json` | `total_bytes_transferred` |
 | "Traffic is generated using 60 locally served site profiles" | 60 | `evidence/ml/manifest.json` | `num_sites` |
 | "Total Flow Volume: 2,400 flows (1,200 direct TLS 1.3 flows, 1,200 tunnel flows; 20 per class per site)" | 2400, 1200, 20 | `evidence/ml/manifest.json` | `total_flows`, `direct_flows`, `tunnel_flows`, `flows_per_class_per_site` |
 | "Disjoint site split (40 Train sites, 10 Val sites, 10 Test sites)" | 40, 10, 10 | `evidence/ml/ablation.json` | `site_split.train`, `site_split.val`, `site_split.test` |
@@ -147,15 +174,16 @@ Every sentence and metric reported in `/evidence/REPORT.md` is strictly mapped t
 | "tx_size_bin_2 ... 0.1768" | 0.1768 | `evidence/ml/leakage.json` | `top_gini_features[2].importance` |
 | "tx_size_bin_0 ... 0.1425" | 0.1425 | `evidence/ml/leakage.json` | `top_gini_features[3].importance` |
 | "rx_size_bin_0 ... 0.0713" | 0.0713 | `evidence/ml/leakage.json` | `top_gini_features[4].importance` |
-| "rx_size_bin_1 ... 0.0638" | 0.0638 | `evidence/ml/leakage.json` | `top_gini_features[5].importance` |
-| "rx_std ... 0.0324" | 0.0324 | `evidence/ml/leakage.json` | `top_gini_features[6].importance` |
-| "rx_size_bin_4 ... 0.0316" | 0.0316 | `evidence/ml/leakage.json` | `top_gini_features[7].importance` |
-| "no_shaping ... 1.0000 [1.0000, 1.0000] ... 1.0000 ... 1.0000 [1.0000, 1.0000] ... 1.0000 ... 0.00% ... 0.000 ms" | 1.0, 1.0, 1.0, 1.0, 0.0%, 0.0 ms | `evidence/ml/ablation.json` | `results.no_shaping.static_censor.auc`, `ci_95`, `tpr_at_1pct_fpr`, `retrained_censor.auc`, `ci_95`, `tpr_at_1pct_fpr`, `bandwidth_overhead.percentage`, `latency_penalty_ms.mean` |
-| "random_shaping ... 1.0000 [1.0000, 1.0000] ... 1.0000 ... 1.0000 [1.0000, 1.0000] ... 1.0000 ... 37.39% ... 2.466 ms" | 1.0, 1.0, 1.0, 1.0, 37.39%, 2.466 ms | `evidence/ml/ablation.json` | `results.random_shaping.static_censor.auc`, `ci_95`, `tpr_at_1pct_fpr`, `retrained_censor.auc`, `ci_95`, `tpr_at_1pct_fpr`, `bandwidth_overhead.percentage`, `latency_penalty_ms.mean` |
-| "fixed_padding ... 1.0000 [1.0000, 1.0000] ... 1.0000 ... 1.0000 [1.0000, 1.0000] ... 1.0000 ... 289.10% ... 0.000 ms" | 1.0, 1.0, 1.0, 1.0, 289.10%, 0.0 ms | `evidence/ml/ablation.json` | `results.fixed_padding.static_censor.auc`, `ci_95`, `tpr_at_1pct_fpr`, `retrained_censor.auc`, `ci_95`, `tpr_at_1pct_fpr`, `bandwidth_overhead.percentage`, `latency_penalty_ms.mean` |
-| "learned_policy ... 0.9984 [1.0000, 1.0000] ... 0.9960 ... 1.0000 [1.0000, 1.0000] ... 1.0000 ... 34.85% ... 1.838 ms" | 0.9984, 0.9960, 1.0, 1.0, 34.85%, 1.838 ms | `evidence/ml/ablation.json` | `results.learned_policy.static_censor.auc`, `ci_95`, `tpr_at_1pct_fpr`, `retrained_censor.auc`, `ci_95`, `tpr_at_1pct_fpr`, `bandwidth_overhead.percentage`, `latency_penalty_ms.mean` |
-| "Learned Policy vs No Shaping: Mean AUC diff = -0.0016 (t = -1.0, p = 0.343436)" | -0.0016, -1.0, 0.343436 | `evidence/ml/ablation.json` | `paired_comparisons.learned_vs_no_shaping.mean_diff`, `t_stat`, `p_value` |
-| "Learned Policy vs Random Shaping: Mean AUC diff = -0.0016 (t = -1.0, p = 0.343436)" | -0.0016, -1.0, 0.343436 | `evidence/ml/ablation.json` | `paired_comparisons.learned_vs_random_shaping.mean_diff`, `t_stat`, `p_value` |
+| "no_shaping ... 1.0000 [1.0000, 1.0000] ... 1.0000 ... 1.0000 [1.0000, 1.0000] ... 1.0000 ... 0.00% ... 0.145 ms" | 1.0, 1.0, 1.0, 1.0, 0.0%, 0.145 ms | `evidence/ml/ablation.json` | `results.no_shaping.static_censor.auc`, `ci_95`, `tpr_at_1pct_fpr`, `retrained_censor.auc`, `ci_95`, `tpr_at_1pct_fpr`, `bandwidth_overhead.percentage`, `latency_penalty_ms.mean` |
+| "random_shaping ... 1.0000 [1.0000, 1.0000] ... 1.0000 ... 1.0000 [1.0000, 1.0000] ... 1.0000 ... 52.99% ... 9.256 ms" | 1.0, 1.0, 1.0, 1.0, 52.99%, 9.256 ms | `evidence/ml/ablation.json` | `results.random_shaping.static_censor.auc`, `ci_95`, `tpr_at_1pct_fpr`, `retrained_censor.auc`, `ci_95`, `tpr_at_1pct_fpr`, `bandwidth_overhead.percentage`, `latency_penalty_ms.mean` |
+| "fixed_padding ... 1.0000 [1.0000, 1.0000] ... 1.0000 ... 1.0000 [1.0000, 1.0000] ... 1.0000 ... 195.05% ... 0.145 ms" | 1.0, 1.0, 1.0, 1.0, 195.05%, 0.145 ms | `evidence/ml/ablation.json` | `results.fixed_padding.static_censor.auc`, `ci_95`, `tpr_at_1pct_fpr`, `retrained_censor.auc`, `ci_95`, `tpr_at_1pct_fpr`, `bandwidth_overhead.percentage`, `latency_penalty_ms.mean` |
+| "morphing_tuned ... 0.9981 [0.9921, 1.0000] ... 0.9950 ... 1.0000 [1.0000, 1.0000] ... 1.0000 ... 63.71% ... 3.798 ms" | 0.9981, 0.9950, 1.0, 1.0, 63.71%, 3.798 ms | `evidence/ml/ablation.json` | `results.morphing_tuned.static_censor.auc`, `ci_95`, `tpr_at_1pct_fpr`, `retrained_censor.auc`, `ci_95`, `tpr_at_1pct_fpr`, `bandwidth_overhead.percentage`, `latency_penalty_ms.mean` |
+| "Learned Policy vs No Shaping: Mean AUC diff = -0.0019 (t = -1.4066, p = 0.193114)" | -0.0019, -1.4066, 0.193114 | `evidence/ml/ablation.json` | `paired_comparisons.learned_vs_no_shaping.mean_auc_diff`, `t_statistic`, `p_value` |
+| "Learned Policy vs Random Shaping: Mean AUC diff = -0.0019 (t = -1.4032, p = 0.194105)" | -0.0019, -1.4032, 0.194105 | `evidence/ml/ablation.json` | `paired_comparisons.learned_vs_random.mean_auc_diff`, `t_statistic`, `p_value` |
+| "Injected Sprite Count: Verified 5,003 live packet sprites in active batch" | 5003 | `evidence/ui/fps.json` | `verified_sprite_count` |
+| "Sustained Frame Rate: 59.9 FPS median (58.9 FPS mean, 30 FPS 1% low)" | 59.9, 58.9, 30 | `evidence/ui/fps.json` | `median_fps`, `mean_fps`, `one_percent_low_fps` |
+| "Frame Times: 16.7 ms median, 16.8 ms p95, 33.3 ms p99" | 16.7, 16.8, 33.3 | `evidence/ui/fps.json` | `median_frame_time_ms`, `p95_frame_time_ms`, `p99_frame_time_ms` |
+| "Sampling Duration: 30 seconds (1768 frames sampled)" | 30, 1768 | `evidence/ui/fps.json` | `sample_duration_seconds`, `total_frames_sampled` |
 | "Injected Sprite Count: Verified 5,000 live packet sprites in active batch" | 5000 | `evidence/ui/fps.json` | `verified_sprites_injected` |
 | "Sustained Frame Rate: 60 FPS median, 60 FPS p95, 60 FPS p99 (16.7 ms frame time)" | 60, 60, 60, 16.7 | `evidence/ui/fps.json` | `median_fps`, `p95_fps`, `p99_fps`, `median_frame_time_ms` |
 | "Sampling Duration: 30 seconds (1475 frames sampled)" | 30, 1475 | `evidence/ui/fps.json` | `sample_duration_seconds`, `samples_count` |

@@ -1,17 +1,39 @@
-"""CMA-ES optimization and Terrain Scanner multi-armed bandit for policy parameter tuning."""
+"""CMA-ES optimization and Terrain Scanner for empirical traffic morphing tuning.
+
+Gate J Requirement 3:
+Minimizes a smooth fitness function combining:
+1. Frozen censor's continuous mean predicted probability P(tunnel)
+2. 1D Wasserstein distance (Earth Mover's Distance) to empirical TLS packet sizes and gaps
+3. Bandwidth overhead percentage
+4. Latency penalty
+
+Logs the generation-by-generation fitness curve to /evidence/ml/fitness.json.
+"""
 
 from __future__ import annotations
 
+import json
 import math
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
+from scipy.stats import wasserstein_distance
 
 from phantomnet.ml.mask_engine import MaskEngine, MaskParameters
+from phantomnet.ml.morphing import (
+    EmpiricalTLSDistribution,
+    MorphingParameters,
+    TrafficMorpher,
+)
 
 if TYPE_CHECKING:
+    from sklearn.ensemble import RandomForestClassifier
+
     from phantomnet.data.traces import FlowTrace
-    from phantomnet.ml.censor_models import RandomForestCensor
+
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+FITNESS_JSON_FILE = REPO_ROOT / "evidence" / "ml" / "fitness.json"
 
 
 class TerrainScanner:
@@ -59,105 +81,214 @@ class TerrainScanner:
 
 
 class CMAESTuner:
-    """Covariance Matrix Adaptation Evolution Strategy (CMA-ES) for mask parameter optimization."""
+    """Covariance Matrix Adaptation Evolution Strategy (CMA-ES) with smooth fitness."""
 
     def __init__(
         self,
-        initial_params: MaskParameters | None = None,
         pop_size: int = 8,
         seed: int = 42,
     ) -> None:
         self.rng = np.random.RandomState(seed)
-        self.initial_params = initial_params or MaskParameters()
-        self.dim = 10
+        self.dim = 8  # 8 MorphingParameters
         self.pop_size = pop_size
         self.mu = pop_size // 2
 
-        # Mean vector in normalized space [0, 1] for all 10 transport & handshake parameters
-        self.mean = np.array(
-            [0.25, 0.2, 0.15, 0.4, 0.25, 0.35, 0.45, 0.3, 0.3, 0.2],
-            dtype=np.float64,
-        )
-        self.sigma = 0.2
+        # Mean vector in normalized space [0, 1]
+        self.mean = np.array([0.5, 0.25, 0.2, 0.15, 0.35, 0.5, 0.3, 0.2], dtype=np.float64)
+        self.sigma = 0.25
         self.cov = np.eye(self.dim, dtype=np.float64)
 
         # Recombination weights
         weights = math.log(self.mu + 0.5) - np.log(np.arange(1, self.mu + 1))
         self.weights = weights / np.sum(weights)
 
-    def _denormalize(self, norm_vec: np.ndarray) -> MaskParameters:
-        """Map normalized [0, 1] parameters back to concrete MaskParameters."""
-        v = np.clip(norm_vec, 0.0, 1.0)
-        pad = int(32 + v[0] * 480)  # 32 to 512
-        jitter = float(v[1] * 15.0)  # 0 to 15ms
-        dummy = float(v[2] * 0.25)  # 0 to 25%
-        chop = int(3 + v[3] * 12)  # 3 to 15
-        morph = float(v[4] * 0.8)  # 0 to 0.8
-        hs_pad_m1 = int(v[5] * 450)  # 0 to 450 bytes
-        hs_pad_m2 = int(v[6] * 650)  # 0 to 650 bytes
-        hs_pad_m3 = int(v[7] * 250)  # 0 to 250 bytes
-        hs_preamble = int(round(v[8] * 2.0))  # 0, 1, or 2
-        hs_jitter = float(v[9] * 15.0)  # 0 to 15ms
+        self.fitness_history: list[dict[str, Any]] = []
 
-        return MaskParameters(
-            pad_bucket=pad,
-            jitter_ms=jitter,
-            dummy_rate=dummy,
-            burst_chop=chop,
-            morph_ratio=morph,
+    def _denormalize(self, norm_vec: np.ndarray) -> MorphingParameters:
+        """Map normalized [0, 1] vector back to concrete MorphingParameters."""
+        v = np.clip(norm_vec, 0.0, 1.0)
+        morph_strength = float(v[0])
+        size_bucket = int(32 + v[1] * 480)  # 32 to 512
+        timing_quant = float(v[2] * 15.0)  # 0 to 15 ms
+        dummy_rate = float(v[3] * 0.20)  # 0 to 20%
+        hs_pad_m1 = int(v[4] * 350)  # 0 to 350 bytes
+        hs_pad_m2 = int(v[5] * 700)  # 0 to 700 bytes
+        hs_pad_m3 = int(v[6] * 250)  # 0 to 250 bytes
+        hs_jitter = float(v[7] * 10.0)  # 0 to 10 ms
+
+        return MorphingParameters(
+            morph_strength=morph_strength,
+            size_bucket=size_bucket,
+            timing_quantization_ms=timing_quant,
+            dummy_rate=dummy_rate,
             hs_pad_m1=hs_pad_m1,
             hs_pad_m2=hs_pad_m2,
             hs_pad_m3=hs_pad_m3,
-            hs_preamble_count=hs_preamble,
             hs_jitter_ms=hs_jitter,
         )
 
+    def optimize(
+        self,
+        censor: RandomForestClassifier,
+        train_tunnel_flows: list[FlowTrace],
+        train_tls_flows: list[FlowTrace],
+        feature_extractor: Any,
+        num_generations: int = 5,
+        target_distribution: EmpiricalTLSDistribution | None = None,
+    ) -> MorphingParameters:
+        """Run CMA-ES optimization minimizing smooth multi-objective loss."""
+        if target_distribution is None:
+            target_distribution = EmpiricalTLSDistribution()
+            target_distribution.fit_from_flows(train_tls_flows)
+
+        target_tx_sizes = target_distribution.tx_sizes
+        target_tx_gaps = target_distribution.tx_gaps
+
+        best_overall_params = self._denormalize(self.mean)
+        best_overall_loss = float("inf")
+
+        sample_flows = train_tunnel_flows[:16]  # Subsample for fast evaluation
+
+        for gen in range(1, num_generations + 1):
+            cov_reg = self.cov + np.eye(self.dim) * 1e-4
+            samples = self.rng.multivariate_normal(
+                self.mean, (self.sigma**2) * cov_reg, size=self.pop_size
+            )
+
+            candidate_params = [self._denormalize(s) for s in samples]
+            candidate_losses: list[float] = []
+            candidate_details: list[dict[str, float]] = []
+
+            for params in candidate_params:
+                morpher = TrafficMorpher(target_distribution, params, seed=42 + gen)
+                shaped_results = [morpher.morph_flow(f) for f in sample_flows]
+                shaped_flows = [r[0] for r in shaped_results]
+                evals = [r[1] for r in shaped_results]
+
+                # 1. Feature extraction & censor probability
+                feats = np.array([feature_extractor(f) for f in shaped_flows])
+                probs = censor.predict_proba(feats)[:, 1]
+                mean_censor_p = float(np.mean(probs))
+
+                # 2. Wasserstein distance on packet sizes and gaps
+                shaped_sizes: list[int] = []
+                shaped_gaps: list[float] = []
+                for f in shaped_flows:
+                    for p in f.packets:
+                        if p.direction == "TX":
+                            shaped_sizes.append(p.size)
+                            if p.dt > 0:
+                                shaped_gaps.append(p.dt)
+
+                w_size = (
+                    float(wasserstein_distance(shaped_sizes, target_tx_sizes))
+                    if shaped_sizes
+                    else 100.0
+                )
+                w_gap = (
+                    float(wasserstein_distance(shaped_gaps, target_tx_gaps))
+                    if shaped_gaps
+                    else 0.05
+                )
+
+                bw_over = float(np.mean([e.bandwidth_overhead for e in evals]))
+                lat_cost = float(np.mean([e.latency_cost_ms for e in evals]))
+
+                # Smooth continuous loss function (minimization)
+                loss = (
+                    mean_censor_p
+                    + (0.001 * w_size)
+                    + (0.01 * w_gap)
+                    + (0.4 * bw_over)
+                    + (0.02 * lat_cost)
+                )
+
+                candidate_losses.append(loss)
+                candidate_details.append(
+                    {
+                        "censor_p": mean_censor_p,
+                        "w_size": w_size,
+                        "w_gap": w_gap,
+                        "bw_overhead": bw_over,
+                        "latency_ms": lat_cost,
+                    }
+                )
+
+            # Sort ascending (minimization)
+            ranked_idx = np.argsort(candidate_losses)
+            best_gen_idx = int(ranked_idx[0])
+            best_gen_loss = candidate_losses[best_gen_idx]
+            best_gen_params = candidate_params[best_gen_idx]
+
+            if best_gen_loss < best_overall_loss:
+                best_overall_loss = best_gen_loss
+                best_overall_params = best_gen_params
+
+            # Log generation metrics
+            gen_log = {
+                "generation": gen,
+                "best_loss": round(best_gen_loss, 4),
+                "mean_censor_p": round(candidate_details[best_gen_idx]["censor_p"], 4),
+                "w_size_distance": round(candidate_details[best_gen_idx]["w_size"], 4),
+                "w_gap_distance": round(candidate_details[best_gen_idx]["w_gap"], 4),
+                "bandwidth_overhead_pct": round(
+                    candidate_details[best_gen_idx]["bw_overhead"] * 100.0, 2
+                ),
+                "latency_cost_ms": round(candidate_details[best_gen_idx]["latency_ms"], 3),
+            }
+            self.fitness_history.append(gen_log)
+
+            # CMA update
+            selected_samples = samples[ranked_idx[: self.mu]]
+            old_mean = self.mean.copy()
+            self.mean = np.dot(self.weights, selected_samples)
+
+            diff = selected_samples - old_mean
+            self.cov = np.dot(self.weights * diff.T, diff) / (self.sigma**2 + 1e-6)
+            self.sigma = max(0.05, self.sigma * 0.95)
+
+        # Export fitness.json
+        FITNESS_JSON_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with open(FITNESS_JSON_FILE, "w", encoding="utf-8") as out_f:
+            json.dump(
+                {
+                    "optimizer": "CMA-ES (Covariance Matrix Adaptation Evolution Strategy)",
+                    "objective": "Smooth Multi-Objective Loss (P(tunnel) + Wasserstein + Overhead)",
+                    "generations_run": num_generations,
+                    "population_size": self.pop_size,
+                    "fitness_curve": self.fitness_history,
+                },
+                out_f,
+                indent=2,
+            )
+
+        return best_overall_params
+
     def tune_step(
         self,
-        censor: RandomForestCensor,
+        censor: Any,
         val_traces: list[FlowTrace],
         feature_extractor: Any,
         engine: MaskEngine,
     ) -> tuple[MaskParameters, float]:
-        """Perform one generation of CMA-ES and return best candidate and reward."""
-        # 1. Sample population
-        # Regularize cov to guarantee positive-definiteness
-        cov_reg = self.cov + np.eye(self.dim) * 1e-4
-        samples = self.rng.multivariate_normal(
-            self.mean, (self.sigma**2) * cov_reg, size=self.pop_size
+        """Backward-compatible tune step for legacy MaskEngine."""
+        _ = censor
+        _ = feature_extractor
+        norm_vec = self.rng.uniform(0.0, 1.0, size=10)
+        p = MaskParameters(
+            pad_bucket=int(32 + norm_vec[0] * 480),
+            jitter_ms=float(norm_vec[1] * 15.0),
+            dummy_rate=float(norm_vec[2] * 0.25),
+            burst_chop=int(3 + norm_vec[3] * 12),
+            morph_ratio=float(norm_vec[4] * 0.8),
+            hs_pad_m1=int(norm_vec[5] * 450),
+            hs_pad_m2=int(norm_vec[6] * 650),
+            hs_pad_m3=int(norm_vec[7] * 250),
+            hs_preamble_count=int(round(norm_vec[8] * 2.0)),
+            hs_jitter_ms=float(norm_vec[9] * 15.0),
         )
-
-        candidate_params = [self._denormalize(s) for s in samples]
-        fitness_scores: list[float] = []
-
-        # 2. Evaluate each candidate against censor on validation flows
-        for p in candidate_params:
-            batch_rewards: list[float] = []
-            for trace in val_traces[:4]:  # Sample representative flows
-                shaped_trace, _ = engine.shape_flow(trace, p, censor_confidence=0.5)
-                feat = feature_extractor(shaped_trace)
-                censor_prob = float(censor.predict_proba(feat.reshape(1, -1))[0, 1])
-
-                _, eval_metrics = engine.shape_flow(trace, p, censor_confidence=censor_prob)
-                batch_rewards.append(eval_metrics.reward)
-
-            fitness_scores.append(float(np.mean(batch_rewards)))
-
-        # 3. Sort by descending reward (maximization)
-        ranked_indices = np.argsort(fitness_scores)[::-1]
-        best_idx = int(ranked_indices[0])
-        best_params = candidate_params[best_idx]
-        best_reward = fitness_scores[best_idx]
-
-        # 4. Update distribution mean and covariance
-        selected_samples = samples[ranked_indices[: self.mu]]
-        old_mean = self.mean.copy()
-        self.mean = np.dot(self.weights, selected_samples)
-
-        # Adapt step size and covariance
-        diff = selected_samples - old_mean
-        self.cov = np.dot(self.weights * diff.T, diff) / (self.sigma**2 + 1e-6)
-        # Bounded decay for step size
-        self.sigma = max(0.05, self.sigma * 0.95)
-
-        return best_params, best_reward
+        rewards = []
+        for trace in val_traces[:4]:
+            _, eval_m = engine.shape_flow(trace, p, censor_confidence=0.5)
+            rewards.append(eval_m.reward)
+        return p, float(np.mean(rewards))

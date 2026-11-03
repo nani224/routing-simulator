@@ -66,9 +66,24 @@ export const EvidenceWallLens: React.FC = () => {
           const Icon = m.icon;
           return (
             <div key={m.label} className="po-card">
-              <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "#94a3b8", marginBottom: 4 }}>
-                <Icon style={{ width: 14, height: 14, color: m.color }} />
-                <span>{m.label}</span>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "#94a3b8" }}>
+                  <Icon style={{ width: 14, height: 14, color: m.color }} />
+                  <span>{m.label}</span>
+                </div>
+                <span
+                  style={{
+                    fontSize: 9,
+                    fontWeight: 700,
+                    padding: "1px 4px",
+                    borderRadius: 3,
+                    background: "rgba(16, 185, 129, 0.2)",
+                    border: "1px solid rgba(16, 185, 129, 0.6)",
+                    color: "#34d399",
+                  }}
+                >
+                  MEASURED
+                </span>
               </div>
               <div className="po-card-val" style={{ color: "#ffffff" }}>
                 {m.value}
