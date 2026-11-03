@@ -1,7 +1,7 @@
 # PHANTOMNET: Verification & Evidence Report
 
-**Generated:** 2026-11-03 10:38:11 UTC  
-**Git Commit:** `5f2329fd2dde8961d45e1bc2b5d1b1f2ba7d57a5` (Working Tree Modified)  
+**Generated:** 2026-11-03 10:38:56 UTC  
+**Git Commit:** `46880217fe950b24531eb344d32b1b9feca46267` (Clean)  
 **Branch:** `phantomnet`  
 **Determinism Proof Status:** VERIFIED (3/3 MATCH)  
 
