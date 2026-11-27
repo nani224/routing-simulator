@@ -42,16 +42,10 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
 
   return (
     <div
-      className="carto-card"
+      className="carto-card routing-inspector"
       style={{
-        position: 'absolute',
-        top: '60px',
-        right: '16px',
-        bottom: '80px',
-        width: '380px',
         display: 'flex',
         flexDirection: 'column',
-        zIndex: 40,
         boxShadow: 'var(--shadow-lg)',
         border: '2px solid var(--border-brass)',
         background: 'var(--surface-card)',
@@ -110,7 +104,7 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
                 ))}
               </select>
             </div>
-            <div style={{ fontSize: '0.68rem', fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>
+            <div style={{ fontSize: '0.78rem', fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>
               {nodeData?.as_number ? `AS${nodeData.as_number} · ` : ''}
               {isCrashed ? 'STATUS: CRASHED' : 'STATUS: RUNNING'}
             </div>
@@ -161,7 +155,7 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
         </div>
 
         {/* Telemetry Chips */}
-        <div style={{ display: 'flex', gap: '0.4rem', fontSize: '0.68rem', fontFamily: 'var(--font-mono)' }}>
+        <div style={{ display: 'flex', gap: '0.4rem', fontSize: '0.78rem', fontFamily: 'var(--font-mono)' }}>
           <span title="Packets Sent / Received">
             TX:{packetsSent} RX:{packetsReceived}
           </span>
@@ -187,7 +181,7 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
             border: 'none',
             borderBottom: activeTab === 'routes' ? '2px solid var(--accent-brass)' : 'none',
             fontWeight: 600,
-            fontSize: '0.74rem',
+            fontSize: '0.84rem',
             cursor: 'pointer',
             color: activeTab === 'routes' ? 'var(--text-primary)' : 'var(--text-muted)',
           }}
@@ -205,7 +199,7 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
             border: 'none',
             borderBottom: activeTab === 'neighbors' ? '2px solid var(--accent-brass)' : 'none',
             fontWeight: 600,
-            fontSize: '0.74rem',
+            fontSize: '0.84rem',
             cursor: 'pointer',
             color: activeTab === 'neighbors' ? 'var(--text-primary)' : 'var(--text-muted)',
           }}
@@ -224,7 +218,7 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
               border: 'none',
               borderBottom: activeTab === 'lsdb' ? '2px solid var(--accent-brass)' : 'none',
               fontWeight: 600,
-              fontSize: '0.74rem',
+              fontSize: '0.84rem',
               cursor: 'pointer',
               color: activeTab === 'lsdb' ? 'var(--text-primary)' : 'var(--text-muted)',
             }}
@@ -237,7 +231,7 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
       </div>
 
       {/* Content Area */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '0.5rem' }}>
+      <div style={{ flex: 1, overflow: 'auto', minHeight: 0, padding: '0.5rem' }}>
         {activeTab === 'routes' && (
           <div>
             {routes.length === 0 ? (
@@ -255,7 +249,7 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
                         ? 'Hop Count'
                         : protocol.includes('bgp')
                         ? 'AS-Path Length'
-                        : 'Cumulative Cost'}
+                        : 'Cost'}
                     </th>
                     {protocol.includes('bgp') ? <th>AS_PATH Sequence</th> : <th>Protocol</th>}
                   </tr>
@@ -358,7 +352,7 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
                 }}
               >
                 <div style={{ fontWeight: 700 }}>LSA Origin: Router {nid}</div>
-                <div style={{ color: 'var(--text-muted)', fontSize: '0.68rem' }}>
+                <div style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>
                   Seq: 0x80000001 · MaxAge: 3600s
                 </div>
               </div>

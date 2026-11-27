@@ -85,19 +85,18 @@ export const InstrumentBar: React.FC<InstrumentBarProps> = ({
   onOpenSettings,
 }) => {
   return (
-    <header
+    <header className="routing-toolbar"
       style={{
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'space-between',
+        justifyContent: 'flex-start',
         padding: '0.45rem 1rem',
         background: 'var(--surface-card)',
         borderBottom: '2px solid var(--border-brass)',
         boxShadow: 'var(--shadow-md)',
         zIndex: 50,
         gap: '0.75rem',
-        flexWrap: 'nowrap',
-        overflowX: 'auto',
+        flexWrap: 'wrap',
       }}
     >
       {/* 1. Brand Logo & Course Team Badge */}
@@ -143,10 +142,8 @@ export const InstrumentBar: React.FC<InstrumentBarProps> = ({
         </div>
       </div>
 
-      <div style={{ width: '1px', height: '24px', background: 'var(--border-ink)' }} />
-
       {/* 2. Topology & Protocol Selectors */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
+      <div className="routing-toolbar-group" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
         {/* Topology Selector */}
         <select
           aria-label="Topology"
@@ -158,7 +155,7 @@ export const InstrumentBar: React.FC<InstrumentBarProps> = ({
             border: '1px solid var(--border-ink)',
             borderRadius: '4px',
             padding: '0.35rem 0.6rem',
-            fontSize: '0.8rem',
+            fontSize: '0.9rem',
             fontWeight: 600,
             cursor: 'pointer',
           }}
@@ -182,7 +179,7 @@ export const InstrumentBar: React.FC<InstrumentBarProps> = ({
             border: '1px solid var(--border-brass)',
             borderRadius: '4px',
             padding: '0.35rem 0.6rem',
-            fontSize: '0.8rem',
+            fontSize: '0.9rem',
             fontWeight: 700,
             cursor: 'pointer',
           }}
@@ -196,10 +193,8 @@ export const InstrumentBar: React.FC<InstrumentBarProps> = ({
         </select>
       </div>
 
-      <div style={{ width: '1px', height: '24px', background: 'var(--border-ink)' }} />
-
       {/* 3. Playback Instruments */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0 }}>
+      <div className="routing-toolbar-group" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
         <button
           className={isRunning ? 'btn-brass' : 'btn-brass btn-brass-primary'}
           onClick={onTogglePlay}
@@ -235,10 +230,8 @@ export const InstrumentBar: React.FC<InstrumentBarProps> = ({
         </div>
       </div>
 
-      <div style={{ width: '1px', height: '24px', background: 'var(--border-ink)' }} />
-
       {/* 4. Convergence Status Parchment Seal */}
-      <div
+      <div className="routing-status"
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -277,10 +270,8 @@ export const InstrumentBar: React.FC<InstrumentBarProps> = ({
         </div>
       </div>
 
-      <div style={{ width: '1px', height: '24px', background: 'var(--border-ink)' }} />
-
       {/* 5. Tool Triggers */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0 }}>
+      <div className="routing-toolbar-group routing-tools" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
         <button
           className={isPhysicsActive ? 'btn-brass btn-brass-primary' : 'btn-brass'}
           onClick={onTogglePhysics}
@@ -347,7 +338,7 @@ export const InstrumentBar: React.FC<InstrumentBarProps> = ({
           Explain
         </button>
 
-        <button className="btn-brass" onClick={onOpenSettings} title="Settings & Parameters">
+        <button className="btn-brass" onClick={onOpenSettings} aria-label="Settings & Parameters" title="Settings & Parameters">
           <Sliders size={13} />
         </button>
 

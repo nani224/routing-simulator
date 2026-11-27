@@ -58,29 +58,24 @@ export const PathTracerPanel: React.FC<PathTracerPanelProps> = ({
 
   return (
     <div
-      className="carto-card"
+      className="carto-card routing-tracer"
       style={{
-        position: 'absolute',
-        top: '60px',
-        left: '16px',
-        width: '320px',
         background: 'var(--surface-card)',
         border: '2px solid var(--border-brass)',
         padding: '0.8rem 1rem',
-        zIndex: 30,
         boxShadow: 'var(--shadow-md)',
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.6rem' }}>
         <Navigation size={15} color="var(--accent-brass)" />
-        <span style={{ fontWeight: 800, fontFamily: 'var(--font-heading)', fontSize: '0.86rem' }}>
+        <span style={{ fontWeight: 800, fontFamily: 'var(--font-heading)', fontSize: '1rem' }}>
           Golden Quill Path Tracer
         </span>
       </div>
 
       <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginBottom: '0.6rem' }}>
         <div style={{ flex: 1 }}>
-          <label style={{ fontSize: '0.66rem', fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>
+          <label style={{ fontSize: '0.78rem', fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>
             SOURCE
           </label>
           <select
@@ -107,7 +102,7 @@ export const PathTracerPanel: React.FC<PathTracerPanelProps> = ({
         <ArrowRight size={14} style={{ marginTop: '14px', color: 'var(--text-muted)' }} />
 
         <div style={{ flex: 1 }}>
-          <label style={{ fontSize: '0.66rem', fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>
+          <label style={{ fontSize: '0.78rem', fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>
             DESTINATION
           </label>
           <select
@@ -146,7 +141,7 @@ export const PathTracerPanel: React.FC<PathTracerPanelProps> = ({
             hasLoop ? 'var(--accent-crimson)' : isBlackhole ? 'var(--accent-amber)' : 'var(--border-ink)'
           }`,
           fontFamily: 'var(--font-mono)',
-          fontSize: '0.74rem',
+          fontSize: '0.86rem',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.3rem' }}>
@@ -194,7 +189,7 @@ export const PathTracerPanel: React.FC<PathTracerPanelProps> = ({
               alignItems: 'center',
               justifyContent: 'center',
               gap: '0.4rem',
-              fontSize: '0.72rem',
+              fontSize: '0.86rem',
               fontWeight: 700,
               cursor: 'pointer',
             }}
@@ -206,7 +201,7 @@ export const PathTracerPanel: React.FC<PathTracerPanelProps> = ({
         )}
 
         {!hasLoop && !isBlackhole && (
-          <div style={{ fontSize: '0.68rem', color: 'var(--text-secondary)' }}>
+          <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
             {getMetricSummary()}
           </div>
         )}

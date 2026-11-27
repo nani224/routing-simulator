@@ -9,6 +9,7 @@ import type {
   TopologyLink,
 } from './types';
 import { RouteLabApi } from './services/api';
+import './RoutingWorkspace.css';
 import { TopologyBuilder } from './components/TopologyBuilder';
 import { TopologyCanvas } from './components/TopologyCanvas';
 import { InstrumentBar } from './components/InstrumentBar';
@@ -1039,7 +1040,7 @@ export const App: React.FC = () => {
       )}
       {simulationError && <p role="alert">{simulationError}</p>}
       {/* Dual Arena Global Switcher */}
-      <div
+      <div className="arena-switcher"
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -1156,16 +1157,11 @@ export const App: React.FC = () => {
       />
 
       {/* 2. Main Drafting Table Canvas */}
-      <main style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+      <main className={`routing-workspace${selectedNode ? ' has-inspector' : ''}`}>
         {/* Floating Active Perturbation Alert Banner with 1-Click Clear */}
         {hasActiveAttacks && (
-          <div
+          <div className="routing-alert"
             style={{
-              position: 'absolute',
-              top: '1rem',
-              left: '50%',
-              transform: 'translateX(-50%)',
-              zIndex: 35,
               background: 'oklch(from var(--accent-crimson) l c h / 0.92)',
               color: '#FFFFFF',
               padding: '0.4rem 1rem',
@@ -1248,6 +1244,8 @@ export const App: React.FC = () => {
           flapsCount={selectedNodeTelemetry?.flaps || 0}
         />
 
+      </main>
+
         {/* 5. Bottom Timeline Scrubber with historical scrubbing */}
         <TimelineScrubber
           currentTime={simTime}
@@ -1257,7 +1255,6 @@ export const App: React.FC = () => {
           onSeek={handleSeek}
           events={events}
         />
-      </main>
 
       {/* 6. Modals */}
       {isCompareOpen && (

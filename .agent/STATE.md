@@ -111,3 +111,10 @@ Status: COMPLETED (ALL 5 PHASES COMPLETE)
 - The RouteLab toolbar opens a builder for one locally saved topology. Both the simulator and the Observatory live mesh use its backend session. Comparison and topology export use the active graph.
 - Probes now traverse the backend router tables and emulated links. Control overhead metrics exclude probes. The browser regression script `frontend/tests/custom-topology.mjs` verifies backend packet delivery and hop events, metrics configuration, protocol comparison, Observatory failover, probe rerouting, restoration, and persistence. Local recording is in `.venv/ui-evidence/custom-topology.webm`.
 - The frontend build, Ruff, strict mypy, and the browser tests passed. A custom graph also ran through Distance Vector, Link State, BGP-Lite, Flooding, and Secure DV. The full suite passed once, then reported 124 passes and one intermittent loopback reset in the existing tunnel egress-shaping test on two further runs.
+
+### Responsive RouteLab workspace
+
+- The topology camera fits the current graph to the canvas after a resize or topology change. The zoom controls offer centered adjustments and a Fit button. The canvas uses the display pixel ratio to keep labels sharp.
+- The RouteLab toolbar wraps. The tracer and inspector use separate columns at desktop widths and move below the canvas at narrower widths. The timeline remains in view.
+- The browser test `frontend/tests/responsive-routing.mjs` passed at 1440, 1024, and 390 pixels. Custom topology and linked routing regressions passed on rerun. Local recording is in `.venv/ui-evidence/responsive-routing.webm`.
+- The production build passed. The full verification run reported 124 backend passes and the existing intermittent loopback reset in the tunnel egress-shaping test.

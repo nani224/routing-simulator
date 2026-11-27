@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import type { TopologyData, PacketCourier } from '../types';
 
 interface TopologyCanvasProps {
@@ -39,6 +39,34 @@ export const TopologyCanvas: React.FC<TopologyCanvasProps> = ({
   const [hoveredLink, setHoveredLink] = useState<{ u: string; v: string } | null>(null);
   const clickRef = useRef<{ clientX: number; clientY: number; node: string | null } | null>(null);
 
+  const positionsRef = useRef(nodePositions);
+  useEffect(() => { positionsRef.current = nodePositions; }, [nodePositions]);
+
+  const fitTopology = useCallback((positions: TopologyData['nodes']) => {
+    const container = containerRef.current;
+    const points = Object.values(positions);
+    if (!container || !points.length || !container.clientWidth || !container.clientHeight) return;
+    const { clientWidth: width, clientHeight: height } = container;
+    const xs = points.map(({ x }) => x);
+    const ys = points.map(({ y }) => y);
+    const minX = Math.min(...xs), maxX = Math.max(...xs);
+    const minY = Math.min(...ys), maxY = Math.max(...ys);
+    const nextZoom = Math.min(2.65, (width * .90) / (maxX - minX + 68), (height * .82) / (maxY - minY + 84));
+    setZoom(nextZoom);
+    setOffset({
+      x: width / 2 - (minX + maxX) * nextZoom / 2,
+      y: height / 2 - (minY + maxY) * nextZoom / 2,
+    });
+  }, []);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const observer = new ResizeObserver(() => fitTopology(positionsRef.current));
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [fitTopology]);
+
   // Sync node positions from topology prop
   useEffect(() => {
     const initialPositions: Record<string, { x: number; y: number }> = {};
@@ -46,7 +74,8 @@ export const TopologyCanvas: React.FC<TopologyCanvasProps> = ({
       initialPositions[id] = { ...coord };
     }
     setNodePositions(initialPositions);
-  }, [topology.name, topology.nodes]);
+    fitTopology(initialPositions);
+  }, [topology.name, topology.nodes, fitTopology]);
 
   // Force-directed physics step
   useEffect(() => {
@@ -129,17 +158,16 @@ export const TopologyCanvas: React.FC<TopologyCanvasProps> = ({
     let animId: number;
 
     const render = () => {
-      // Resize to container size
-      if (containerRef.current) {
-        const { clientWidth, clientHeight } = containerRef.current;
-        if (canvas.width !== clientWidth || canvas.height !== clientHeight) {
-          canvas.width = clientWidth;
-          canvas.height = clientHeight;
-        }
+      const w = containerRef.current?.clientWidth ?? 0;
+      const h = containerRef.current?.clientHeight ?? 0;
+      const dpr = window.devicePixelRatio || 1;
+      const pixelWidth = Math.round(w * dpr);
+      const pixelHeight = Math.round(h * dpr);
+      if (canvas.width !== pixelWidth || canvas.height !== pixelHeight) {
+        canvas.width = pixelWidth;
+        canvas.height = pixelHeight;
       }
-
-      const w = canvas.width;
-      const h = canvas.height;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, w, h);
 
       ctx.save();
@@ -363,7 +391,7 @@ export const TopologyCanvas: React.FC<TopologyCanvasProps> = ({
 
         // Node ID Label
         ctx.fillStyle = inkColor;
-        ctx.font = '700 12px Cinzel, Outfit, serif';
+        ctx.font = `700 ${Math.max(13, 13 / zoom)}px Outfit, sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(id, 0, 0);
@@ -372,7 +400,7 @@ export const TopologyCanvas: React.FC<TopologyCanvasProps> = ({
         const nodeInfo = topology.nodes[id];
         if (nodeInfo && nodeInfo.as_number) {
           ctx.fillStyle = brassColor;
-          ctx.font = '600 9px JetBrains Mono';
+          ctx.font = `600 ${Math.max(10, 10 / zoom)}px JetBrains Mono`;
           ctx.fillText(`AS${nodeInfo.as_number}`, 0, 32);
         }
 
@@ -381,62 +409,64 @@ export const TopologyCanvas: React.FC<TopologyCanvasProps> = ({
 
       ctx.restore();
 
-      // 5. Draw Minimap in bottom-left corner
-      const mmWidth = 140;
-      const mmHeight = 100;
-      const mmX = 20;
-      const mmY = h - mmHeight - 20;
+      if (w >= 500 && h >= 350) {
+        // 5. Draw Minimap in bottom-left corner
+        const mmWidth = 140;
+        const mmHeight = 100;
+        const mmX = 20;
+        const mmY = h - mmHeight - 20;
 
-      ctx.save();
-      ctx.fillStyle = isDark ? 'rgba(20, 36, 54, 0.85)' : 'rgba(252, 250, 246, 0.85)';
-      ctx.strokeStyle = brassColor;
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.roundRect(mmX, mmY, mmWidth, mmHeight, 4);
-      ctx.fill();
-      ctx.stroke();
-
-      // Draw mini nodes
-      const allCoords = Object.values(nodePositions);
-      if (allCoords.length > 0) {
-        const minX = Math.min(...allCoords.map((c) => c.x));
-        const maxX = Math.max(...allCoords.map((c) => c.x)) + 1;
-        const minY = Math.min(...allCoords.map((c) => c.y));
-        const maxY = Math.max(...allCoords.map((c) => c.y)) + 1;
-
-        const scaleX = (mmWidth - 24) / (maxX - minX || 1);
-        const scaleY = (mmHeight - 24) / (maxY - minY || 1);
-        const mmScale = Math.min(scaleX, scaleY);
-
-        ctx.fillStyle = inkColor;
-        for (const coord of allCoords) {
-          const nx = mmX + 12 + (coord.x - minX) * mmScale;
-          const ny = mmY + 12 + (coord.y - minY) * mmScale;
-          ctx.beginPath();
-          ctx.arc(nx, ny, 2.5, 0, Math.PI * 2);
-          ctx.fill();
-        }
-
-        // Viewport rectangle in minimap
-        const vpX = mmX + 12 + (-offset.x / zoom - minX) * mmScale;
-        const vpY = mmY + 12 + (-offset.y / zoom - minY) * mmScale;
-        const vpW = (w / zoom) * mmScale;
-        const vpH = (h / zoom) * mmScale;
-
+        ctx.save();
+        ctx.fillStyle = isDark ? 'rgba(20, 36, 54, 0.85)' : 'rgba(252, 250, 246, 0.85)';
         ctx.strokeStyle = brassColor;
         ctx.lineWidth = 1;
-        ctx.strokeRect(
-          Math.max(mmX, vpX),
-          Math.max(mmY, vpY),
-          Math.min(mmWidth - 4, vpW),
-          Math.min(mmHeight - 4, vpH)
-        );
-      }
+        ctx.beginPath();
+        ctx.roundRect(mmX, mmY, mmWidth, mmHeight, 4);
+        ctx.fill();
+        ctx.stroke();
 
-      ctx.fillStyle = brassColor;
-      ctx.font = '700 8px Outfit';
-      ctx.fillText('MINIMAP', mmX + 8, mmY + 12);
-      ctx.restore();
+        // Draw mini nodes
+        const allCoords = Object.values(nodePositions);
+        if (allCoords.length > 0) {
+          const minX = Math.min(...allCoords.map((c) => c.x));
+          const maxX = Math.max(...allCoords.map((c) => c.x)) + 1;
+          const minY = Math.min(...allCoords.map((c) => c.y));
+          const maxY = Math.max(...allCoords.map((c) => c.y)) + 1;
+
+          const scaleX = (mmWidth - 24) / (maxX - minX || 1);
+          const scaleY = (mmHeight - 24) / (maxY - minY || 1);
+          const mmScale = Math.min(scaleX, scaleY);
+
+          ctx.fillStyle = inkColor;
+          for (const coord of allCoords) {
+            const nx = mmX + 12 + (coord.x - minX) * mmScale;
+            const ny = mmY + 12 + (coord.y - minY) * mmScale;
+            ctx.beginPath();
+            ctx.arc(nx, ny, 2.5, 0, Math.PI * 2);
+            ctx.fill();
+          }
+
+          // Viewport rectangle in minimap
+          const vpX = mmX + 12 + (-offset.x / zoom - minX) * mmScale;
+          const vpY = mmY + 12 + (-offset.y / zoom - minY) * mmScale;
+          const vpW = (w / zoom) * mmScale;
+          const vpH = (h / zoom) * mmScale;
+
+          ctx.strokeStyle = brassColor;
+          ctx.lineWidth = 1;
+          ctx.strokeRect(
+            Math.max(mmX, vpX),
+            Math.max(mmY, vpY),
+            Math.min(mmWidth - 4, vpW),
+            Math.min(mmHeight - 4, vpH)
+          );
+        }
+
+        ctx.fillStyle = brassColor;
+        ctx.font = '700 8px Outfit';
+        ctx.fillText('MINIMAP', mmX + 8, mmY + 12);
+        ctx.restore();
+      }
 
       animId = requestAnimationFrame(render);
     };
@@ -594,7 +624,7 @@ export const TopologyCanvas: React.FC<TopologyCanvasProps> = ({
   const handleWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
     e.preventDefault();
     const zoomFactor = e.deltaY < 0 ? 1.1 : 0.9;
-    const newZoom = Math.min(3.0, Math.max(0.3, zoom * zoomFactor));
+    const newZoom = Math.min(4, Math.max(Math.min(.08, zoom), zoom * zoomFactor));
 
     // Zoom toward mouse position
     const canvas = canvasRef.current;
@@ -610,10 +640,23 @@ export const TopologyCanvas: React.FC<TopologyCanvasProps> = ({
     setZoom(newZoom);
   };
 
+  function zoomFromCenter(factor: number) {
+    const container = containerRef.current;
+    if (!container) return;
+    const x = container.clientWidth / 2;
+    const y = container.clientHeight / 2;
+    const nextZoom = Math.min(4, Math.max(Math.min(.08, zoom), zoom * factor));
+    setOffset({
+      x: x - (x - offset.x) * (nextZoom / zoom),
+      y: y - (y - offset.y) * (nextZoom / zoom),
+    });
+    setZoom(nextZoom);
+  }
+
   return (
     <div
       ref={containerRef}
-      className="drafting-canvas-bg"
+      className="drafting-canvas-bg routing-canvas"
       style={{
         width: '100%',
         height: '100%',
@@ -631,49 +674,11 @@ export const TopologyCanvas: React.FC<TopologyCanvasProps> = ({
         style={{ display: 'block', width: '100%', height: '100%' }}
       />
 
-      {/* Floating Canvas Zoom Controls */}
-      <div
-        style={{
-          position: 'absolute',
-          top: '16px',
-          right: '16px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '6px',
-          background: 'var(--surface-card)',
-          border: '1px solid var(--border-brass)',
-          borderRadius: '4px',
-          padding: '4px',
-          boxShadow: 'var(--shadow-md)',
-        }}
-      >
-        <button
-          className="btn-brass"
-          style={{ width: '32px', height: '32px', padding: 0 }}
-          onClick={() => setZoom((z) => Math.min(3.0, z * 1.2))}
-          title="Zoom In"
-        >
-          +
-        </button>
-        <button
-          className="btn-brass"
-          style={{ width: '32px', height: '32px', padding: 0 }}
-          onClick={() => setZoom((z) => Math.max(0.3, z * 0.8))}
-          title="Zoom Out"
-        >
-          -
-        </button>
-        <button
-          className="btn-brass"
-          style={{ width: '32px', height: '32px', padding: 0, fontSize: '0.65rem' }}
-          onClick={() => {
-            setZoom(1.0);
-            setOffset({ x: 80, y: 60 });
-          }}
-          title="Reset View"
-        >
-          1:1
-        </button>
+      <div className="routing-zoom">
+        <button className="btn-brass" onClick={() => zoomFromCenter(1.25)} aria-label="Zoom in">+</button>
+        <button className="btn-brass" onClick={() => zoomFromCenter(.8)} aria-label="Zoom out">−</button>
+        <button className="btn-brass" onClick={() => fitTopology(nodePositions)} aria-label="Fit topology">Fit</button>
+        <span role="status" aria-label="Canvas zoom">{Math.round(zoom * 100)}%</span>
       </div>
     </div>
   );
