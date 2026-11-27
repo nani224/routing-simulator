@@ -21,6 +21,8 @@ import {
 
 interface InstrumentBarProps {
   currentTopologyName: string;
+  customTopologyName?: string;
+  onBuildTopology: () => void;
   onSelectTopology: (name: string) => void;
   currentProtocol: ProtocolType;
   onSelectProtocol: (proto: ProtocolType) => void;
@@ -52,6 +54,8 @@ interface InstrumentBarProps {
 
 export const InstrumentBar: React.FC<InstrumentBarProps> = ({
   currentTopologyName,
+  customTopologyName,
+  onBuildTopology,
   onSelectTopology,
   currentProtocol,
   onSelectProtocol,
@@ -145,6 +149,7 @@ export const InstrumentBar: React.FC<InstrumentBarProps> = ({
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
         {/* Topology Selector */}
         <select
+          aria-label="Topology"
           value={currentTopologyName}
           onChange={(e) => onSelectTopology(e.target.value)}
           style={{
@@ -163,7 +168,9 @@ export const InstrumentBar: React.FC<InstrumentBarProps> = ({
           <option value="course-10-node">Course 10-Node WAN</option>
           <option value="ring-10">Ring 10</option>
           <option value="scale-free-20">Scale-Free 20</option>
+          {customTopologyName && <option value="custom">{customTopologyName}</option>}
         </select>
+        <button className="btn-brass" onClick={onBuildTopology}>Build topology</button>
 
         {/* Protocol Selector */}
         <select

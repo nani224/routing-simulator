@@ -44,11 +44,6 @@ export function traceRoute(
 
     path.push(next);
     curr = next;
-
-    if (path.length > 20) {
-      hasLoop = true;
-      break;
-    }
   }
 
   return { path, hasLoop, isBlackhole, totalCost, hops: Math.max(0, path.length - 1) };

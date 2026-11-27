@@ -7,7 +7,7 @@ interface PathTracerPanelProps {
   topology: TopologyData;
   allRoutes: Record<string, RouteEntry[]>;
   onPathChanged: (path: string[], loop: boolean) => void;
-  onSendProbePacket?: (path: string[]) => void;
+  onSendProbePacket?: (path: string[]) => Promise<void>;
   protocol?: string;
 }
 
@@ -19,8 +19,11 @@ export const PathTracerPanel: React.FC<PathTracerPanelProps> = ({
   protocol = 'distance_vector',
 }) => {
   const nodeIds = Object.keys(topology.nodes);
-  const [srcNode, setSrcNode] = useState<string>(nodeIds[0] || 'R1');
-  const [dstNode, setDstNode] = useState<string>(nodeIds[nodeIds.length - 1] || 'R6');
+  const [source, setSrcNode] = useState('');
+  const [destination, setDstNode] = useState('');
+  const [probeError, setProbeError] = useState('');
+  const srcNode = Object.hasOwn(topology.nodes, source) ? source : nodeIds[0] ?? '';
+  const dstNode = Object.hasOwn(topology.nodes, destination) ? destination : nodeIds[nodeIds.length - 1] ?? '';
 
   const { path, hasLoop, isBlackhole, totalCost, hops } = traceRoute(topology, allRoutes, srcNode, dstNode);
 
@@ -171,9 +174,17 @@ export const PathTracerPanel: React.FC<PathTracerPanelProps> = ({
           {path.join(' ➔ ')}
         </div>
 
+        {probeError && <p role="alert">{probeError}</p>}
         {!hasLoop && !isBlackhole && path.length > 1 && onSendProbePacket && (
           <button
-            onClick={() => onSendProbePacket(path)}
+            onClick={async () => {
+              setProbeError('');
+              try {
+                await onSendProbePacket(path);
+              } catch (error) {
+                setProbeError(error instanceof Error ? error.message : String(error));
+              }
+            }}
             className="btn-brass"
             style={{
               marginTop: '0.4rem',

@@ -86,6 +86,8 @@ class RouterNode(ProtocolContext):
 
         # Node metrics
         self.packets_sent: int = 0
+        self.control_packets_sent: int = 0
+        self.control_bytes_sent: int = 0
         self.packets_received: int = 0
         self.bytes_sent: int = 0
         self.bytes_received: int = 0
@@ -190,9 +192,43 @@ class RouterNode(ProtocolContext):
             packet_type=PacketType.CONTROL,
         )
 
+        self._transmit_packet(nbr, link, pkt)
+
+    def send_probe(self, destination: str) -> None:
+        """Send a synthetic data probe using this router's forwarding table."""
+        self._seq += 1
+        packet = Packet(
+            src=self.node_id,
+            dst=destination,
+            proto="probe",
+            seq=self._seq,
+            ttl=64,
+            timestamp=self.clock.now(),
+            payload={},
+            packet_type=PacketType.PROBE,
+        )
+        if not self._forward_probe(packet):
+            raise ValueError(f"No usable route from {self.node_id} to {destination}")
+
+    def _forward_probe(self, packet: Packet) -> bool:
+        route = next((entry for entry in self.get_table() if entry.destination == packet.dst), None)
+        hop = route.next_hop if route else None
+        link = self.links.get(hop) if hop else None
+        if self.status != NodeStatus.RUNNING or not hop or not link or not link.is_up:
+            return False
+        if packet.ttl <= 0:
+            return False
+        packet.ttl -= 1
+        self._transmit_packet(hop, link, packet)
+        return True
+
+    def _transmit_packet(self, nbr: str, link: LinkEmulator, pkt: Packet) -> None:
         encoded = pkt.to_bytes()
         self.packets_sent += 1
         self.bytes_sent += len(encoded)
+        if pkt.packet_type == PacketType.CONTROL:
+            self.control_packets_sent += 1
+            self.control_bytes_sent += len(encoded)
 
         if self.event_store is not None:
             self.event_store.append(
@@ -203,12 +239,12 @@ class RouterNode(ProtocolContext):
                     "src": self.node_id,
                     "dst": nbr,
                     "proto": pkt.proto,
-                    "seq": self._seq,
+                    "seq": pkt.seq,
                 },
             )
 
         if self.on_packet_sent is not None:
-            self.on_packet_sent(self.node_id, nbr, pkt.proto, self._seq)
+            self.on_packet_sent(self.node_id, nbr, pkt.proto, pkt.seq)
 
         # Transmit via LinkEmulator
         link.transmit(pkt, delivery_callback=self._deliver_to_nbr_callback(nbr))
@@ -256,6 +292,16 @@ class RouterNode(ProtocolContext):
         self.packets_received += 1
         self.bytes_received += pkt.byte_size
 
+        if pkt.packet_type == PacketType.PROBE and pkt.dst != self.node_id:
+            if not self._forward_probe(pkt) and self.event_store is not None:
+                self.event_store.append(
+                    timestamp=self.clock.now(),
+                    event_type=EventType.PACKET_DROPPED,
+                    source=self.node_id,
+                    data={"src": pkt.src, "dst": pkt.dst, "proto": pkt.proto, "seq": pkt.seq},
+                )
+            return
+
         if self.event_store is not None:
             self.event_store.append(
                 timestamp=self.clock.now(),
@@ -272,7 +318,7 @@ class RouterNode(ProtocolContext):
         if self.on_packet_delivered is not None:
             self.on_packet_delivered(pkt.src, self.node_id, pkt.proto, pkt.seq)
 
-        if self._runner is not None:
+        if pkt.packet_type != PacketType.PROBE and self._runner is not None:
             self._runner.on_message(pkt.src, pkt.payload)
             if self._runner.is_faulty:
                 self.status = NodeStatus.FAULTY

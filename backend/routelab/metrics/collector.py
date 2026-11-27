@@ -63,11 +63,11 @@ class MetricsCollector:
         node_count = len(engine.nodes)
         link_count = len(engine.links)
 
-        total_msgs = sum(n.packets_sent for n in engine.nodes.values())
-        total_bytes = sum(n.bytes_sent for n in engine.nodes.values())
+        total_msgs = sum(n.control_packets_sent for n in engine.nodes.values())
+        total_bytes = sum(n.control_bytes_sent for n in engine.nodes.values())
         total_flaps = sum(n.flaps_count for n in engine.nodes.values())
 
-        per_node_msgs = {nid: n.packets_sent for nid, n in engine.nodes.items()}
+        per_node_msgs = {nid: n.control_packets_sent for nid, n in engine.nodes.items()}
         per_node_flaps = {nid: n.flaps_count for nid, n in engine.nodes.items()}
 
         total_delivered = sum(lnk.stats.packets_delivered for lnk in engine.links.values())

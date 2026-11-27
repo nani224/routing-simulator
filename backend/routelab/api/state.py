@@ -273,6 +273,11 @@ class SimulationSessionManager:
             self.engine.inject_link_state(str(params["u"]), str(params["v"]), up=True)
         elif action == "link_cost":
             self.engine.inject_link_cost(str(params["u"]), str(params["v"]), float(params["cost"]))
+        elif action == "inject_packet":
+            source, destination = str(params["source"]), str(params["destination"])
+            if source == destination or not {source, destination} <= self.engine.nodes.keys():
+                raise ValueError("Choose two different routers in the active topology")
+            self.engine.nodes[source].send_probe(destination)
         elif action == "node_crash":
             self.engine.inject_node_crash(str(params["node_id"]))
         elif action == "node_recover":

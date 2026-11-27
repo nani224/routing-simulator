@@ -10,12 +10,15 @@ interface Props {
   connected: boolean;
   converged: boolean;
   onOpenRouteLab: () => void;
+  onSendProbe: (path: string[]) => Promise<void>;
 }
 
-export function LiveRouteLabMesh({ topology, routes, protocol, connected, converged, onOpenRouteLab }: Props) {
+export function LiveRouteLabMesh({ topology, routes, protocol, connected, converged, onOpenRouteLab, onSendProbe }: Props) {
   const nodes = Object.keys(topology.nodes);
-  const source = nodes[0];
-  const destination = nodes[nodes.length - 1];
+  const [selectedSource, setSource] = useState('');
+  const [selectedDestination, setDestination] = useState('');
+  const source = Object.hasOwn(topology.nodes, selectedSource) ? selectedSource : nodes[0];
+  const destination = Object.hasOwn(topology.nodes, selectedDestination) ? selectedDestination : nodes.at(-1);
   const trace = source && destination && source !== destination
     ? traceRoute(topology, routes, source, destination)
     : null;
@@ -39,7 +42,18 @@ export function LiveRouteLabMesh({ topology, routes, protocol, connected, conver
     }
   }
 
-  const path = trace && !trace.isBlackhole && !trace.hasLoop ? trace.path.join(' → ') : null;
+  const hops = trace && !trace.isBlackhole && !trace.hasLoop ? trace.path : null;
+  const path = hops?.join(' → ');
+
+  async function sendProbe() {
+    if (!hops) return;
+    setError('');
+    try {
+      await onSendProbe(hops);
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : String(failure));
+    }
+  }
 
   return (
     <section className="po-header po-routing-mesh" aria-labelledby="live-routing-mesh-title">
@@ -50,9 +64,17 @@ export function LiveRouteLabMesh({ topology, routes, protocol, connected, conver
         </p>
       </div>
       <div>
-        <p className="po-subtitle">Forwarding path · {source} → {destination}</p>
+        <div className="po-routing-actions">
+          <select className="btn-brass" aria-label="Source router" value={source ?? ''} onChange={(event) => setSource(event.target.value)}>
+            {nodes.map((id) => <option key={id}>{id}</option>)}
+          </select>
+          <span aria-hidden="true">→</span>
+          <select className="btn-brass" aria-label="Destination router" value={destination ?? ''} onChange={(event) => setDestination(event.target.value)}>
+            {nodes.map((id) => <option key={id}>{id}</option>)}
+          </select>
+        </div>
         <p aria-label="Current forwarding path">
-          {connected ? path ?? (trace?.hasLoop ? 'Routing loop' : 'No forwarding path') : 'Waiting for routing tables'}
+          {connected ? path ?? (source === destination ? 'Choose two different routers' : trace?.hasLoop ? 'Routing loop' : 'No forwarding path') : 'Waiting for routing tables'}
         </p>
       </div>
       <div className="po-routing-actions">
@@ -72,6 +94,7 @@ export function LiveRouteLabMesh({ topology, routes, protocol, connected, conver
         <button className="btn-brass" disabled={!connected || pending || !link} onClick={toggleLink}>
           {link?.is_up ? 'Fail link' : 'Restore link'}
         </button>
+        <button className="btn-brass" disabled={!connected || !hops} onClick={sendProbe}>Send probe</button>
         <button className="btn-brass" onClick={onOpenRouteLab}>Open RouteLab</button>
         {error && <span role="alert">{error}</span>}
       </div>

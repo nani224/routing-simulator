@@ -57,13 +57,15 @@ export const FailureAttackModal: React.FC<FailureAttackModalProps> = ({
 }) => {
   const [selectedLinkKey, setSelectedLinkKey] = useState<string>('');
   const [newCost, setNewCost] = useState<number>(10);
-  const [targetPoisonNode, setTargetPoisonNode] = useState<string>('R6');
+  const [poisonTarget, setTargetPoisonNode] = useState('');
   const [maliciousCost, setMaliciousCost] = useState<number>(1);
-  const [selectedNodeId, setSelectedNodeId] = useState<string>('R2');
+  const [nodeSelection, setSelectedNodeId] = useState('');
 
   if (!isOpen) return null;
 
   const nodeIds = Object.keys(topology.nodes);
+  const targetPoisonNode = Object.hasOwn(topology.nodes, poisonTarget) ? poisonTarget : nodeIds.at(-1) ?? '';
+  const selectedNodeId = Object.hasOwn(topology.nodes, nodeSelection) ? nodeSelection : nodeIds[0] ?? '';
   const isPoisonActive = currentProtocol === 'poisoning_attack';
   const isMitigationActive = currentProtocol === 'secure_dv';
   const hasActiveAttacks =

@@ -62,16 +62,11 @@ export const CompareWorkbench: React.FC<CompareWorkbenchProps> = ({
 
   // Source & Destination for Interactive Path Comparison & Highlighting
   const nodeIds = useMemo(() => Object.keys(topology.nodes), [topology.nodes]);
-  const [pathSrc, setPathSrc] = useState<string>('R1');
-  const [pathDst, setPathDst] = useState<string>('R6');
+  const [sourceSelection, setPathSrc] = useState('');
+  const [destinationSelection, setPathDst] = useState('');
 
-  // Keep pathSrc and pathDst valid when topology changes
-  useEffect(() => {
-    if (nodeIds.length > 0) {
-      if (!topology.nodes[pathSrc]) setPathSrc(nodeIds[0]);
-      if (!topology.nodes[pathDst]) setPathDst(nodeIds[nodeIds.length - 1]);
-    }
-  }, [topology, nodeIds]);
+  const pathSrc = Object.hasOwn(topology.nodes, sourceSelection) ? sourceSelection : nodeIds[0] ?? '';
+  const pathDst = Object.hasOwn(topology.nodes, destinationSelection) ? destinationSelection : nodeIds.at(-1) ?? '';
 
   // Playback & Animation State (Normalized 10.0s Visual Presentation Timeline)
   const TOTAL_VISUAL_RACE_S = 10.0;
@@ -750,6 +745,7 @@ export const CompareWorkbench: React.FC<CompareWorkbenchProps> = ({
           <button
             className="btn-brass"
             style={{ width: '32px', height: '32px', padding: 0 }}
+            aria-label="Close comparison"
             onClick={onClose}
           >
             <X size={16} />

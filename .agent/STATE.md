@@ -105,3 +105,9 @@ Status: COMPLETED (ALL 5 PHASES COMPLETE)
 - RouteLab defaults to the Observatory palette. The existing theme switch remains available.
 - The browser regression script is `frontend/tests/linked-routing.mjs`. It verified rerouting, shared link status, restoration, and the dark default. Local recording is in `.venv/ui-evidence/linked-routing.webm`.
 - The production build, Ruff, and strict mypy passed. `make verify` reported 124 passed and one failure in the existing tunnel egress-shaping test. An isolated retry also failed when the test's loopback connection reset before any packets were captured.
+
+### Custom topology builder
+
+- The RouteLab toolbar opens a builder for one locally saved topology. Both the simulator and the Observatory live mesh use its backend session. Comparison and topology export use the active graph.
+- Probes now traverse the backend router tables and emulated links. Control overhead metrics exclude probes. The browser regression script `frontend/tests/custom-topology.mjs` verifies backend packet delivery and hop events, metrics configuration, protocol comparison, Observatory failover, probe rerouting, restoration, and persistence. Local recording is in `.venv/ui-evidence/custom-topology.webm`.
+- The frontend build, Ruff, strict mypy, and the browser tests passed. A custom graph also ran through Distance Vector, Link State, BGP-Lite, Flooding, and Secure DV. The full suite passed once, then reported 124 passes and one intermittent loopback reset in the existing tunnel egress-shaping test on two further runs.
