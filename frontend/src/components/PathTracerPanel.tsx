@@ -1,3 +1,4 @@
+import { traceRoute } from '../services/traceRoute';
 import React, { useState } from 'react';
 import type { RouteEntry, TopologyData } from '../types';
 import { Navigation, AlertOctagon, CheckCircle2, ArrowRight, Send } from 'lucide-react';
@@ -21,56 +22,7 @@ export const PathTracerPanel: React.FC<PathTracerPanelProps> = ({
   const [srcNode, setSrcNode] = useState<string>(nodeIds[0] || 'R1');
   const [dstNode, setDstNode] = useState<string>(nodeIds[nodeIds.length - 1] || 'R6');
 
-  // Compute routed path dynamically using current routing tables
-  const computePath = (
-    src: string,
-    dst: string
-  ): { path: string[]; hasLoop: boolean; isBlackhole: boolean; totalCost: number; hops: number } => {
-    const visited = new Set<string>();
-    const path: string[] = [src];
-    let curr = src;
-    let hasLoop = false;
-    let isBlackhole = false;
-    let totalCost = 0;
-
-    while (curr !== dst) {
-      visited.add(curr);
-      const routes = allRoutes[curr] || [];
-      const entry = routes.find((r) => r.destination === dst);
-
-      if (!entry || !entry.next_hop) {
-        // No route or null next-hop
-        isBlackhole = true;
-        break;
-      }
-
-      const next = entry.next_hop;
-      // Accumulate link cost from topology
-      const link = topology.links.find(
-        (l) => (l.source === curr && l.target === next) || (l.source === next && l.target === curr)
-      );
-      if (link) totalCost += link.cost;
-
-      if (visited.has(next)) {
-        // Loop detected!
-        path.push(next);
-        hasLoop = true;
-        break;
-      }
-
-      path.push(next);
-      curr = next;
-
-      if (path.length > 20) {
-        hasLoop = true;
-        break;
-      }
-    }
-
-    return { path, hasLoop, isBlackhole, totalCost, hops: Math.max(0, path.length - 1) };
-  };
-
-  const { path, hasLoop, isBlackhole, totalCost, hops } = computePath(srcNode, dstNode);
+  const { path, hasLoop, isBlackhole, totalCost, hops } = traceRoute(topology, allRoutes, srcNode, dstNode);
 
   const getProtocolCriteriaLabel = () => {
     if (protocol.includes('flood')) return 'HOP-COUNT PATH (Flooding Discovery)';

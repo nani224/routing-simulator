@@ -21,6 +21,7 @@ import { VirtualizedPacketLog } from './components/VirtualizedPacketLog';
 import { ExportModal } from './components/ExportModal';
 import { ExplainModeModal } from './components/ExplainModeModal';
 import { SettingsModal } from './components/SettingsModal';
+import { LiveRouteLabMesh } from './components/phantom/LiveRouteLabMesh';
 import { PhantomObservatory } from './components/phantom/PhantomObservatory';
 import { AlertTriangle, RotateCcw } from 'lucide-react';
 
@@ -36,7 +37,7 @@ export const App: React.FC = () => {
   const [appMode, setAppMode] = useState<'phantomnet' | 'routelab'>('phantomnet');
 
   // Theme state
-  const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  const [theme, setTheme] = useState<'light' | 'dark'>('dark');
 
   // Topology & Protocol state
   const [currentTopologyName, setCurrentTopologyName] = useState<string>('course-6-node');
@@ -44,6 +45,8 @@ export const App: React.FC = () => {
     RouteLabApi.getFallbackTopology('course-6-node')
   );
   const [currentProtocol, setCurrentProtocol] = useState<ProtocolType>('distance_vector');
+
+  const [routingConnected, setRoutingConnected] = useState(false);
 
   // Simulation execution state
   const [isRunning, setIsRunning] = useState<boolean>(true);
@@ -292,10 +295,12 @@ export const App: React.FC = () => {
 
       // 3. Link updates
       if (linkUpdates.length > 0) {
+        setIsConverged(false);
+        const latestLinkUpdates = linkUpdates.reverse();
         setTopology((prev) => ({
           ...prev,
           links: prev.links.map((lnk) => {
-            const match = linkUpdates.find(
+            const match = latestLinkUpdates.find(
               (lu) =>
                 (lnk.source === lu.u && lnk.target === lu.v) ||
                 (lnk.source === lu.v && lnk.target === lu.u)
@@ -363,6 +368,16 @@ export const App: React.FC = () => {
         if (!state) return;
         if (typeof state.current_time === 'number') setSimTime(state.current_time);
         if (typeof state.is_converged === 'boolean') setIsConverged(state.is_converged);
+        if (state.links && state.active) {
+          setTopology((prev) => ({
+            ...prev,
+            links: prev.links.map((link) => {
+              const key = [link.source, link.target].sort().join('<->');
+              const live = state.links[key];
+              return live ? { ...link, is_up: live.is_up, cost: live.cost } : link;
+            }),
+          }));
+        }
         if (state.nodes) {
           const initRoutes: Record<string, RouteEntry[]> = {};
           const initTelemetry: Record<string, { tx: number; rx: number; flaps: number; isCrashed: boolean }> = {};
@@ -390,7 +405,7 @@ export const App: React.FC = () => {
       } else {
         handleDeltaBatch([msg]);
       }
-    });
+    }, setRoutingConnected);
 
     return () => ws.close();
   }, [currentProtocol, playChime]);
@@ -1050,7 +1065,18 @@ export const App: React.FC = () => {
 
       {appMode === 'phantomnet' ? (
         <div style={{ flex: 1, overflowY: 'auto' }}>
-          <PhantomObservatory />
+          <PhantomObservatory
+            routingMesh={
+              <LiveRouteLabMesh
+                topology={topology}
+                routes={allRoutes}
+                protocol={currentProtocol}
+                connected={routingConnected}
+                converged={isConverged}
+                onOpenRouteLab={() => setAppMode('routelab')}
+              />
+            }
+          />
         </div>
       ) : (
         <>

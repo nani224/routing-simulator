@@ -179,7 +179,7 @@ export class RouteLabApi {
 
   static async injectEvent(action: string, params: Record<string, any>): Promise<any> {
     try {
-      const res = await fetch(`${API_BASE}/api/simulation/events`, {
+      const res = await fetch(`${API_BASE}/api/simulation/event`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action, params }),

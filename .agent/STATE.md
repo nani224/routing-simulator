@@ -98,3 +98,10 @@ Status: COMPLETED (ALL 5 PHASES COMPLETE)
 
 ### Open Issues / Blockers
 - None. All 5 phases of the PHANTOMNET project are 100% completed, tested, evidenced, and verified.
+
+### Live RouteLab mesh and shared dark theme
+
+- The Observatory displays RouteLab's forwarding path and can fail or restore links in the same simulation session used by the RouteLab tab.
+- RouteLab defaults to the Observatory palette. The existing theme switch remains available.
+- The browser regression script is `frontend/tests/linked-routing.mjs`. It verified rerouting, shared link status, restoration, and the dark default. Local recording is in `.venv/ui-evidence/linked-routing.webm`.
+- The production build, Ruff, and strict mypy passed. `make verify` reported 124 passed and one failure in the existing tunnel egress-shaping test. An isolated retry also failed when the test's loopback connection reset before any packets were captured.

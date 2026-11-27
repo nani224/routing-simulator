@@ -147,9 +147,9 @@ export const TopologyCanvas: React.FC<TopologyCanvasProps> = ({
       ctx.scale(zoom, zoom);
 
       const isDark = theme === 'dark';
-      const inkColor = isDark ? '#E0E1DD' : '#22201D';
-      const brassColor = isDark ? '#E0A96D' : '#B87333';
-      const parchmentBg = isDark ? '#142436' : '#FCFAF6';
+      const inkColor = isDark ? '#f1f5f9' : '#22201D';
+      const brassColor = isDark ? '#00f3ff' : '#B87333';
+      const parchmentBg = isDark ? '#0d131f' : '#FCFAF6';
 
       // 1. Draw Subtle Compass Rose Watermark in center-right
       ctx.save();
@@ -279,7 +279,7 @@ export const TopologyCanvas: React.FC<TopologyCanvasProps> = ({
         ctx.save();
         const isProbe = pkt.payloadType === 'probe';
         ctx.fillStyle = isProbe
-          ? '#E0A96D'
+          ? '#00f3ff'
           : pkt.protocol.includes('dv')
           ? '#C87533'
           : pkt.protocol.includes('ls')
