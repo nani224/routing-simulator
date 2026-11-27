@@ -410,3 +410,30 @@
   margin-top: 4px;
 }
 
+
+.po-routing-mesh [aria-label='Current forwarding path'] {
+  color: var(--po-cyan);
+  margin-top: 4px;
+  overflow-wrap: anywhere;
+}
+
+.po-routing-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.po-routing-actions [role='alert'] {
+  flex-basis: 100%;
+  color: var(--po-magenta);
+}
+
+.po-routing-actions .btn-brass {
+  background: var(--po-surface-elevated);
+  border-color: var(--po-border-glow);
+  color: var(--po-text-main);
+}
+
+.po-routing-actions .btn-brass:hover:enabled {
+  border-color: var(--po-cyan);
+}

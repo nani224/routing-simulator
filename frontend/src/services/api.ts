@@ -98,14 +98,8 @@ export class RouteLabApi {
     }
   }
 
-  static async startSimulation(
-    topology: TopologyData,
-    protocol: ProtocolType,
-    quiescence_s = 0.5,
-    clockMode = 'virtual',
-    clockSpeed = 1.0
-  ): Promise<any> {
-    const topology_data = {
+  private static serializeTopology(topology: TopologyData) {
+    return {
       nodes: Object.entries(topology.nodes).map(([id, data]) => ({
         id,
         x: data.x,
@@ -120,16 +114,25 @@ export class RouteLabApi {
         jitter_ms: link.jitter_ms,
         loss_rate: link.loss_rate,
         bandwidth_bps: link.bandwidth_bps,
+        is_up: link.is_up,
       })),
     };
+  }
 
+  static async startSimulation(
+    topology: TopologyData,
+    protocol: ProtocolType,
+    quiescence_s = 0.5,
+    clockMode = 'virtual',
+    clockSpeed = 1.0
+  ): Promise<any> {
     try {
       const res = await fetch(`${API_BASE}/api/simulation/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           topology_name: topology.name || 'Course-6-Node-Benchmark',
-          topology_data,
+          topology_data: this.serializeTopology(topology),
           protocol_name: protocol,
           quiescence_window_s: quiescence_s,
           clock_mode: clockMode,
@@ -179,7 +182,7 @@ export class RouteLabApi {
 
   static async injectEvent(action: string, params: Record<string, any>): Promise<any> {
     try {
-      const res = await fetch(`${API_BASE}/api/simulation/events`, {
+      const res = await fetch(`${API_BASE}/api/simulation/event`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action, params }),
@@ -231,30 +234,12 @@ export class RouteLabApi {
     protocols: ProtocolType[],
     duration_s = 5.0
   ): Promise<ComparisonReportResponse> {
-    const backendTopologyData = {
-      nodes: Object.entries(topology.nodes).map(([id, data]) => ({
-        id,
-        x: data.x,
-        y: data.y,
-        as_number: data.as_number,
-      })),
-      links: topology.links.map((link) => ({
-        source: link.source,
-        target: link.target,
-        cost: link.cost,
-        latency_ms: link.latency_ms,
-        jitter_ms: link.jitter_ms,
-        loss_rate: link.loss_rate,
-        bandwidth_bps: link.bandwidth_bps,
-      })),
-    };
-
     const res = await fetch(`${API_BASE}/api/simulation/compare`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         topology_name: topology.name || 'Course-6-Node-Benchmark',
-        topology_data: backendTopologyData,
+        topology_data: this.serializeTopology(topology),
         protocols,
         events: [],
         time_limit_s: duration_s,

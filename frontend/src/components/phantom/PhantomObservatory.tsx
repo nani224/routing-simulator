@@ -31,7 +31,7 @@ import { EvidenceWallLens } from "./EvidenceWallLens";
 import type { PhantomEvent } from "../../types/events";
 import "./PhantomObservatory.css";
 
-export const PhantomObservatory: React.FC = () => {
+export const PhantomObservatory: React.FC<{ routingMesh: React.ReactNode }> = ({ routingMesh }) => {
   const {
     connState,
     censorScore,
@@ -483,6 +483,7 @@ export const PhantomObservatory: React.FC = () => {
       </div>
 
       {/* Lens Toggle Bar */}
+      {routingMesh}
       <LensToggleBar />
 
       {/* Main PixiJS v8 WebGL Canvas */}

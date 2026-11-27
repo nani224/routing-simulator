@@ -53,6 +53,7 @@ class TopologyLink:
         jitter_ms: Uniform random latency variation (+/-).
         loss_rate: Packet loss probability (0.0 to 1.0).
         bandwidth_bps: Bandwidth constraint in bits/second (0 for unconstrained).
+        is_up: Initial availability of the link.
     """
 
     source: str
@@ -62,6 +63,7 @@ class TopologyLink:
     jitter_ms: float = 0.0
     loss_rate: float = 0.0
     bandwidth_bps: float = 0.0
+    is_up: bool = True
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -76,6 +78,7 @@ class TopologyLink:
             jitter_ms=float(data.get("jitter_ms", 0.0)),
             loss_rate=float(data.get("loss_rate", 0.0)),
             bandwidth_bps=float(data.get("bandwidth_bps", 0.0)),
+            is_up=bool(data.get("is_up", True)),
         )
 
 
@@ -121,6 +124,8 @@ class Topology:
                 metadata=json.dumps(node.metadata),
             )
         for link in self.links:
+            if not link.is_up:
+                continue
             g.add_edge(
                 link.source,
                 link.target,

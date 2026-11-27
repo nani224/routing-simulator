@@ -22,20 +22,15 @@ export const TimelineScrubber: React.FC<TimelineScrubberProps> = ({
   const effectiveMax = Math.max(10.0, maxTime);
 
   return (
-    <div
+    <div className="routing-timeline"
       style={{
-        position: 'absolute',
-        bottom: '0',
-        left: '0',
-        right: '0',
-        height: '62px',
         background: 'var(--surface-card)',
         borderTop: '2px solid var(--border-brass)',
         boxShadow: 'var(--shadow-lg)',
         display: 'flex',
         alignItems: 'center',
-        padding: '0 1.2rem',
-        gap: '1rem',
+        padding: '0.5rem clamp(0.5rem, 2vw, 1.2rem)',
+        gap: 'clamp(0.4rem, 1vw, 1rem)',
         zIndex: 35,
       }}
     >

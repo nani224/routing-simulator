@@ -9,6 +9,8 @@ import type {
   TopologyLink,
 } from './types';
 import { RouteLabApi } from './services/api';
+import './RoutingWorkspace.css';
+import { TopologyBuilder } from './components/TopologyBuilder';
 import { TopologyCanvas } from './components/TopologyCanvas';
 import { InstrumentBar } from './components/InstrumentBar';
 import { NodeInspectorDrawer } from './components/NodeInspectorDrawer';
@@ -21,8 +23,22 @@ import { VirtualizedPacketLog } from './components/VirtualizedPacketLog';
 import { ExportModal } from './components/ExportModal';
 import { ExplainModeModal } from './components/ExplainModeModal';
 import { SettingsModal } from './components/SettingsModal';
+import { LiveRouteLabMesh } from './components/phantom/LiveRouteLabMesh';
 import { PhantomObservatory } from './components/phantom/PhantomObservatory';
 import { AlertTriangle, RotateCcw } from 'lucide-react';
+
+const CUSTOM_TOPOLOGY = 'custom';
+const CUSTOM_STORAGE_KEY = 'routelab.custom-topology.v1';
+
+function readCustomTopology(): TopologyData | null {
+  try {
+    const saved = localStorage.getItem(CUSTOM_STORAGE_KEY);
+    const topology = saved ? JSON.parse(saved) : null;
+    return topology?.name && topology.nodes && Array.isArray(topology.links) ? topology : null;
+  } catch {
+    return null;
+  }
+}
 
 interface HistoricalSnapshot {
   time: number;
@@ -36,14 +52,24 @@ export const App: React.FC = () => {
   const [appMode, setAppMode] = useState<'phantomnet' | 'routelab'>('phantomnet');
 
   // Theme state
-  const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  const [theme, setTheme] = useState<'light' | 'dark'>('dark');
 
   // Topology & Protocol state
-  const [currentTopologyName, setCurrentTopologyName] = useState<string>('course-6-node');
-  const [topology, setTopology] = useState<TopologyData>(() =>
-    RouteLabApi.getFallbackTopology('course-6-node')
+  const [customTopology, setCustomTopology] = useState(readCustomTopology);
+  const [isBuilderOpen, setIsBuilderOpen] = useState(false);
+  const [currentTopologyName, setCurrentTopologyName] = useState(
+    customTopology ? CUSTOM_TOPOLOGY : 'course-6-node'
   );
+  const baselineTopology = useMemo(
+    () => currentTopologyName === CUSTOM_TOPOLOGY && customTopology
+      ? customTopology : RouteLabApi.getFallbackTopology(currentTopologyName),
+    [currentTopologyName, customTopology],
+  );
+  const [topology, setTopology] = useState<TopologyData>(baselineTopology);
   const [currentProtocol, setCurrentProtocol] = useState<ProtocolType>('distance_vector');
+
+  const [routingConnected, setRoutingConnected] = useState(false);
+  const [simulationError, setSimulationError] = useState('');
 
   // Simulation execution state
   const [isRunning, setIsRunning] = useState<boolean>(true);
@@ -55,7 +81,7 @@ export const App: React.FC = () => {
   const [isPhysicsActive, setIsPhysicsActive] = useState<boolean>(false);
 
   // Per-node state & telemetry
-  const [selectedNode, setSelectedNode] = useState<string | null>('R1');
+  const [selectedNode, setSelectedNode] = useState<string | null>(() => Object.keys(baselineTopology.nodes)[0] ?? null);
   const [allRoutes, setAllRoutes] = useState<Record<string, RouteEntry[]>>({});
   const [nodeTelemetry, setNodeTelemetry] = useState<
     Record<string, { tx: number; rx: number; flaps: number; isCrashed: boolean }>
@@ -134,8 +160,7 @@ export const App: React.FC = () => {
   );
 
   // Fallback client-side routing calculation when backend is unreachable
-  const recalculateClientRoutes = useCallback((targetTopo?: TopologyData) => {
-    const activeTopo = targetTopo || topology;
+  const recalculateClientRoutes = useCallback((activeTopo: TopologyData) => {
     const nodeIds = Object.keys(activeTopo.nodes);
     const newRoutes: Record<string, RouteEntry[]> = {};
 
@@ -190,7 +215,7 @@ export const App: React.FC = () => {
     }
 
     setAllRoutes(newRoutes);
-  }, [topology, currentProtocol]);
+  }, [currentProtocol]);
 
   // Stable ref for simTime to avoid tearing and effect re-triggers
   const simTimeRef = useRef<number>(0.0);
@@ -202,8 +227,14 @@ export const App: React.FC = () => {
 
   // Initialize or restart backend simulation when topology or protocol switches
   useEffect(() => {
-    const topo = RouteLabApi.getFallbackTopology(currentTopologyName);
+    const topo = baselineTopology;
     setTopology(topo);
+    setSelectedNode((previous) => previous && Object.hasOwn(topo.nodes, previous)
+      ? previous : Object.keys(topo.nodes)[0] ?? null);
+    setAllRoutes({});
+    setNodeTelemetry({});
+    setConvergenceRecord(null);
+    isScrubbing.current = false;
     setSimTime(0.0);
     setIsConverged(false);
     setConvTime(0.0);
@@ -211,14 +242,21 @@ export const App: React.FC = () => {
     stateHistory.current = [];
 
     // Boot real simulation engine on backend
+    setSimulationError('');
+    let current = true;
     RouteLabApi.startSimulation(topo, currentProtocol, quiescenceWindow, clockMode, speed).then(
       (res) => {
-        if (res.status === 'offline') {
+        if (!current || res.status !== 'offline') return;
+        if (currentTopologyName === CUSTOM_TOPOLOGY) {
+          setSimulationError('RouteLab could not start the custom network.');
+          setIsRunning(false);
+        } else {
           recalculateClientRoutes(topo);
         }
       }
     );
-  }, [currentTopologyName, currentProtocol, quiescenceWindow, clockMode, speed]);
+    return () => { current = false; };
+  }, [baselineTopology, currentTopologyName, currentProtocol, quiescenceWindow, clockMode, speed, recalculateClientRoutes]);
 
   // Hook directly to backend WebSocket live event stream
   useEffect(() => {
@@ -227,7 +265,8 @@ export const App: React.FC = () => {
       const newPackets: PacketCourier[] = [];
       const telemetryDelta: Record<string, { txDelta: number; rxDelta: number }> = {};
       let convergedUpdate: { converged: boolean; duration: number; record?: any } | null = null;
-      const linkUpdates: { u: string; v: string; is_up: boolean }[] = [];
+      const linkUpdates = new Map<string, Partial<Pick<TopologyLink, 'is_up' | 'cost'>>>();
+      const probeUpdates: Omit<SimEventItem, 'seq'>[] = [];
       const nodeStateUpdates: { node_id: string; status: string }[] = [];
 
       for (const delta of batch) {
@@ -235,6 +274,14 @@ export const App: React.FC = () => {
         if (delta.type === 'frame') {
           latestFrame = delta;
         } else if (delta.type === 'packet') {
+          if (delta.proto === 'probe') {
+            probeUpdates.push({
+              ts: simTimeRef.current,
+              type: delta.event.toLowerCase(),
+              src: delta.src,
+              data: { dst: delta.dst, proto: delta.proto, packet_seq: delta.seq },
+            });
+          }
           if (delta.event === 'PACKET_SENT' || delta.event === 'PACKET_FORWARDED') {
             newPackets.push({
               id: `${delta.src}->${delta.dst}-${Date.now()}-${Math.random()}`,
@@ -243,7 +290,7 @@ export const App: React.FC = () => {
               progress: 0.0,
               speed: 1.5,
               protocol: delta.proto || currentProtocol,
-              payloadType: 'control',
+              payloadType: delta.proto === 'probe' ? 'probe' : 'control',
             });
             const cur = telemetryDelta[delta.src] || { txDelta: 0, rxDelta: 0 };
             cur.txDelta += 1;
@@ -255,11 +302,11 @@ export const App: React.FC = () => {
           }
         } else if (delta.type === 'node_state') {
           nodeStateUpdates.push({ node_id: delta.node_id, status: delta.status });
-        } else if (delta.type === 'link_state') {
-          const parts = delta.link_id.split('<->');
-          if (parts.length === 2) {
-            linkUpdates.push({ u: parts[0], v: parts[1], is_up: delta.is_up });
-          }
+        } else if (delta.type === 'link_state' || delta.type === 'link_cost') {
+          const previous = linkUpdates.get(delta.link_id) ?? {};
+          linkUpdates.set(delta.link_id, delta.type === 'link_state'
+            ? { ...previous, is_up: delta.is_up }
+            : { ...previous, cost: delta.cost });
         } else if (delta.type === 'convergence') {
           convergedUpdate = {
             converged: true,
@@ -290,19 +337,22 @@ export const App: React.FC = () => {
         });
       }
 
-      // 3. Link updates
-      if (linkUpdates.length > 0) {
+      // 3. Link updates and probe telemetry
+      if (linkUpdates.size > 0) {
+        setIsConverged(false);
         setTopology((prev) => ({
           ...prev,
-          links: prev.links.map((lnk) => {
-            const match = linkUpdates.find(
-              (lu) =>
-                (lnk.source === lu.u && lnk.target === lu.v) ||
-                (lnk.source === lu.v && lnk.target === lu.u)
-            );
-            return match ? { ...lnk, is_up: match.is_up } : lnk;
-          }),
+          links: prev.links.map((link) => ({
+            ...link,
+            ...linkUpdates.get([link.source, link.target].sort().join('<->')),
+          })),
         }));
+      }
+      if (probeUpdates.length > 0) {
+        setEvents((previous) => [
+          ...previous,
+          ...probeUpdates.map((event, i) => ({ ...event, seq: previous.length + i + 1 })),
+        ]);
       }
 
       // 4. Convergence update
@@ -363,6 +413,16 @@ export const App: React.FC = () => {
         if (!state) return;
         if (typeof state.current_time === 'number') setSimTime(state.current_time);
         if (typeof state.is_converged === 'boolean') setIsConverged(state.is_converged);
+        if (state.links && state.active) {
+          setTopology((prev) => ({
+            ...prev,
+            links: prev.links.map((link) => {
+              const key = [link.source, link.target].sort().join('<->');
+              const live = state.links[key];
+              return live ? { ...link, is_up: live.is_up, cost: live.cost } : link;
+            }),
+          }));
+        }
         if (state.nodes) {
           const initRoutes: Record<string, RouteEntry[]> = {};
           const initTelemetry: Record<string, { tx: number; rx: number; flaps: number; isCrashed: boolean }> = {};
@@ -390,7 +450,7 @@ export const App: React.FC = () => {
       } else {
         handleDeltaBatch([msg]);
       }
-    });
+    }, setRoutingConnected);
 
     return () => ws.close();
   }, [currentProtocol, playChime]);
@@ -448,17 +508,6 @@ export const App: React.FC = () => {
           const nextProg = pkt.progress + pkt.speed * dt * speed;
           if (nextProg < 1.0) {
             nextPackets.push({ ...pkt, progress: nextProg });
-          } else if (pkt.remainingHops && pkt.remainingHops.length > 0) {
-            const nextDst = pkt.remainingHops[0];
-            nextPackets.push({
-              ...pkt,
-              id: `probe-${pkt.dst}->${nextDst}-${Date.now()}`,
-              src: pkt.dst,
-              dst: nextDst,
-              progress: 0.0,
-              speed: 1.2,
-              remainingHops: pkt.remainingHops.slice(1),
-            });
           }
         }
         return nextPackets;
@@ -508,7 +557,9 @@ export const App: React.FC = () => {
     setNodeTelemetry({});
     stateHistory.current = [];
     isScrubbing.current = false;
-    RouteLabApi.startSimulation(topology, currentProtocol, quiescenceWindow, clockMode, speed);
+    setTopology(baselineTopology);
+    setConvergenceRecord(null);
+    RouteLabApi.startSimulation(baselineTopology, currentProtocol, quiescenceWindow, clockMode, speed);
   };
 
   // Historical state replay scrubbing
@@ -537,32 +588,30 @@ export const App: React.FC = () => {
     }, 200);
   };
 
-  const handleMutateLink = (u: string, v: string, up: boolean, cost: number) => {
+  const handleLinkEvent = async (
+    action: 'link_up' | 'link_down' | 'link_cost',
+    u: string,
+    v: string,
+    cost?: number,
+  ) => {
     playChime('click');
-    setTopology((prev) => ({
-      ...prev,
-      links: prev.links.map((lnk) =>
-        (lnk.source === u && lnk.target === v) || (lnk.source === v && lnk.target === u)
-          ? { ...lnk, is_up: up, cost }
-          : lnk
-      ),
-    }));
-
-    setIsConverged(false);
-    setEvents((evs) => [
-      ...evs,
-      {
-        seq: evs.length + 1,
-        ts: simTime,
-        type: up ? 'link_up' : 'link_down',
-        src: `${u}<->${v}`,
-        data: { cost, is_up: up },
-      },
-    ]);
-
-    // Send real event injection to backend
-    RouteLabApi.injectEvent(up ? 'link_up' : 'link_down', { u, v, cost });
+    const response = await RouteLabApi.injectEvent(action, { u, v, cost });
+    if (response.status !== 'event_injected') {
+      setSimulationError(response.detail || 'RouteLab could not change this link.');
+      return;
+    }
+    setSimulationError('');
+    setEvents((previous) => [...previous, {
+      seq: previous.length + 1,
+      ts: simTime,
+      type: action,
+      src: `${u}<->${v}`,
+      data: action === 'link_cost' ? { cost } : { is_up: action === 'link_up' },
+    }]);
   };
+
+  const handleMutateLink = (u: string, v: string, up: boolean) =>
+    handleLinkEvent(up ? 'link_up' : 'link_down', u, v);
 
   const handleCrashNode = (nodeId: string) => {
     playChime('attack');
@@ -669,10 +718,6 @@ export const App: React.FC = () => {
   const severedLinks = useMemo(() => {
     return topology.links.filter((l) => !l.is_up);
   }, [topology.links]);
-
-  const baselineTopology = useMemo(() => {
-    return RouteLabApi.getFallbackTopology(currentTopologyName);
-  }, [currentTopologyName]);
 
   const hasMutatedCosts = useMemo(() => {
     const baseMap = new Map<string, number>();
@@ -828,7 +873,7 @@ export const App: React.FC = () => {
     }
 
     // 2. Restore all links and reset costs to baseline locally and in backend
-    const baseTopo = RouteLabApi.getFallbackTopology(currentTopologyName);
+    const baseTopo = baselineTopology;
     const cleanLinks = baseTopo.links.map((lnk) => ({ ...lnk, is_up: true }));
 
     setTopology((prev) => ({
@@ -955,26 +1000,16 @@ export const App: React.FC = () => {
     setLoopDetected(loop);
   }, []);
 
-  const handleSendProbePacket = useCallback((pathNodes: string[]) => {
+  const handleSendProbePacket = useCallback(async (pathNodes: string[]) => {
     if (pathNodes.length < 2) return;
+    const source = pathNodes[0];
+    const destination = pathNodes[pathNodes.length - 1];
+    const result = await RouteLabApi.injectEvent('inject_packet', { source, destination });
+    if (result.status !== 'event_injected') {
+      throw new Error(result.detail || 'RouteLab could not send the probe.');
+    }
     playChime('click');
-    const firstHop = pathNodes[0];
-    const secondHop = pathNodes[1];
-    const remaining = pathNodes.slice(2);
-    setPackets((prev) => [
-      ...prev,
-      {
-        id: `probe-${firstHop}->${secondHop}-${Date.now()}`,
-        src: firstHop,
-        dst: secondHop,
-        progress: 0.0,
-        speed: 1.2,
-        protocol: currentProtocol,
-        payloadType: 'probe',
-        remainingHops: remaining,
-      },
-    ]);
-  }, [playChime, currentProtocol]);
+  }, [playChime]);
 
   const selectedNodeTelemetry = selectedNode ? nodeTelemetry[selectedNode] : null;
 
@@ -990,8 +1025,22 @@ export const App: React.FC = () => {
         position: 'relative',
       }}
     >
+      {isBuilderOpen && (
+        <TopologyBuilder
+          initial={customTopology}
+          onClose={() => setIsBuilderOpen(false)}
+          onSave={(network) => {
+            localStorage.setItem(CUSTOM_STORAGE_KEY, JSON.stringify(network));
+            setCustomTopology(network);
+            setCurrentTopologyName(CUSTOM_TOPOLOGY);
+            setEvents([]);
+            setIsBuilderOpen(false);
+          }}
+        />
+      )}
+      {simulationError && <p role="alert">{simulationError}</p>}
       {/* Dual Arena Global Switcher */}
-      <div
+      <div className="arena-switcher"
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -1050,13 +1099,27 @@ export const App: React.FC = () => {
 
       {appMode === 'phantomnet' ? (
         <div style={{ flex: 1, overflowY: 'auto' }}>
-          <PhantomObservatory />
+          <PhantomObservatory
+            routingMesh={
+              <LiveRouteLabMesh
+                topology={topology}
+                routes={allRoutes}
+                protocol={currentProtocol}
+                connected={routingConnected}
+                converged={isConverged}
+                onOpenRouteLab={() => setAppMode('routelab')}
+                onSendProbe={handleSendProbePacket}
+              />
+            }
+          />
         </div>
       ) : (
         <>
           {/* 1. Top Instrument Bar */}
       <InstrumentBar
         currentTopologyName={currentTopologyName}
+        customTopologyName={customTopology?.name}
+        onBuildTopology={() => setIsBuilderOpen(true)}
         onSelectTopology={setCurrentTopologyName}
         currentProtocol={currentProtocol}
         onSelectProtocol={setCurrentProtocol}
@@ -1079,7 +1142,7 @@ export const App: React.FC = () => {
           if (selectedNode) {
             setSelectedNode(null);
           } else {
-            const firstNode = Object.keys(topology.nodes)[0] || 'R1';
+            const firstNode = Object.keys(topology.nodes)[0] ?? null;
             setSelectedNode(firstNode);
           }
         }}
@@ -1094,16 +1157,11 @@ export const App: React.FC = () => {
       />
 
       {/* 2. Main Drafting Table Canvas */}
-      <main style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+      <main className={`routing-workspace${selectedNode ? ' has-inspector' : ''}`}>
         {/* Floating Active Perturbation Alert Banner with 1-Click Clear */}
         {hasActiveAttacks && (
-          <div
+          <div className="routing-alert"
             style={{
-              position: 'absolute',
-              top: '1rem',
-              left: '50%',
-              transform: 'translateX(-50%)',
-              zIndex: 35,
               background: 'oklch(from var(--accent-crimson) l c h / 0.92)',
               color: '#FFFFFF',
               padding: '0.4rem 1rem',
@@ -1153,7 +1211,7 @@ export const App: React.FC = () => {
           topology={topology}
           selectedNode={selectedNode}
           onSelectNode={setSelectedNode}
-          onMutateLink={(u, v, up, cost) => handleMutateLink(u, v, up, cost)}
+          onMutateLink={handleMutateLink}
           packets={packets}
           activePath={activePath}
           loopDetected={loopDetected}
@@ -1186,6 +1244,8 @@ export const App: React.FC = () => {
           flapsCount={selectedNodeTelemetry?.flaps || 0}
         />
 
+      </main>
+
         {/* 5. Bottom Timeline Scrubber with historical scrubbing */}
         <TimelineScrubber
           currentTime={simTime}
@@ -1195,14 +1255,15 @@ export const App: React.FC = () => {
           onSeek={handleSeek}
           events={events}
         />
-      </main>
 
       {/* 6. Modals */}
-      <CompareWorkbench
-        isOpen={isCompareOpen}
-        onClose={() => setIsCompareOpen(false)}
-        topology={topology}
-      />
+      {isCompareOpen && (
+        <CompareWorkbench
+          isOpen
+          onClose={() => setIsCompareOpen(false)}
+          topology={topology}
+        />
+      )}
 
       <FailureAttackModal
         isOpen={isAttacksOpen}
@@ -1212,9 +1273,9 @@ export const App: React.FC = () => {
         severedLinks={severedLinks}
         hasMutatedCosts={hasMutatedCosts}
         currentProtocol={currentProtocol}
-        onMutateLinkState={(u, v, up) => handleMutateLink(u, v, up, 1)}
+        onMutateLinkState={handleMutateLink}
         onRestoreAllLinks={handleRestoreAllLinks}
-        onMutateLinkCost={(u, v, cost) => handleMutateLink(u, v, true, cost)}
+        onMutateLinkCost={(u, v, cost) => handleLinkEvent('link_cost', u, v, cost)}
         onResetLinkCosts={handleResetLinkCosts}
         onInjectPoisonAttack={handleInjectPoisonAttack}
         onClearPoisonAttack={handleClearPoisonAttack}

@@ -136,6 +136,7 @@ class SimulationEngine:
                 loss_rate=t_link.loss_rate,
                 bandwidth_bps=t_link.bandwidth_bps,
             )
+            link.is_up = t_link.is_up
             key = f"{min(u, v)}<->{max(u, v)}"
             self.links[key] = link
 
@@ -366,8 +367,8 @@ class SimulationEngine:
                     is_converged=True,
                     convergence_time_s=conv_duration,
                     quiescence_window_s=self.quiescence_window_s,
-                    total_control_messages=sum(n.packets_sent for n in self.nodes.values()),
-                    total_control_bytes=sum(n.bytes_sent for n in self.nodes.values()),
+                    total_control_messages=sum(n.control_packets_sent for n in self.nodes.values()),
+                    total_control_bytes=sum(n.control_bytes_sent for n in self.nodes.values()),
                     total_flaps=sum(n.flaps_count for n in self.nodes.values()),
                 )
                 self.event_store.append(
@@ -486,8 +487,8 @@ class SimulationEngine:
             "is_converged": self._is_converged,
             "convergence": {
                 "time_s": self.convergence_record.convergence_time_s,
-                "messages": sum(n.packets_sent for n in self.nodes.values()),
-                "bytes": sum(n.bytes_sent for n in self.nodes.values()),
+                "messages": sum(n.control_packets_sent for n in self.nodes.values()),
+                "bytes": sum(n.control_bytes_sent for n in self.nodes.values()),
                 "flaps": sum(n.flaps_count for n in self.nodes.values()),
             },
             "nodes": {nid: n.describe_state() for nid, n in self.nodes.items()},

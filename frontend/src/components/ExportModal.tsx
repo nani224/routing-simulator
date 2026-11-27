@@ -40,15 +40,16 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   };
 
   const handleExportMetricsCSV = () => {
+    if (!convergence) return;
     const csvRows = [
       'metric,value',
       `topology,"${topology.name}"`,
       `protocol,"${protocol}"`,
-      `is_converged,${convergence?.is_converged ?? true}`,
-      `convergence_time_s,${convergence?.convergence_time_s ?? 0.42}`,
-      `total_control_messages,${convergence?.total_control_messages ?? 128}`,
-      `total_control_bytes,${convergence?.total_control_bytes ?? 16384}`,
-      `total_flaps,${convergence?.total_flaps ?? 4}`,
+      `is_converged,${convergence.is_converged}`,
+      `convergence_time_s,${convergence.convergence_time_s}`,
+      `total_control_messages,${convergence.total_control_messages}`,
+      `total_control_bytes,${convergence.total_control_bytes}`,
+      `total_flaps,${convergence.total_flaps}`,
       `node_count,${Object.keys(topology.nodes).length}`,
       `link_count,${topology.links.length}`,
     ];
@@ -56,17 +57,12 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   };
 
   const handleExportMetricsJSON = () => {
+    if (!convergence) return;
     const metricsPayload = {
       timestamp: new Date().toISOString(),
       topology: topology.name,
       protocol,
-      metrics: convergence || {
-        is_converged: true,
-        convergence_time_s: 0.42,
-        total_control_messages: 128,
-        total_control_bytes: 16384,
-        total_flaps: 4,
-      },
+      metrics: convergence,
       graph_properties: {
         nodes: Object.keys(topology.nodes).length,
         links: topology.links.length,
@@ -156,7 +152,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                 </div>
               </div>
             </div>
-            <button className="btn-brass" onClick={handleExportMetricsCSV}>
+            <button className="btn-brass" disabled={!convergence} onClick={handleExportMetricsCSV}>
               <Download size={13} />
               CSV
             </button>
@@ -183,7 +179,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                 </div>
               </div>
             </div>
-            <button className="btn-brass" onClick={handleExportMetricsJSON}>
+            <button className="btn-brass" disabled={!convergence} onClick={handleExportMetricsJSON}>
               <Download size={13} />
               JSON
             </button>
